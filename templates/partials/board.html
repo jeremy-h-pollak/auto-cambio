@@ -38,7 +38,7 @@
     <div class="hand-grid">
       {% for i in range(state.computer_hand | length) %}
         {% set card = state.computer_hand[i] %}
-        {% set player_sees = state.player_opponent_known[i] if i < state.player_opponent_known | length else false %}
+        {% set player_sees = i in state.player_opponent_reveal %}
         {% set face_up = is_game_over or player_sees %}
         <div class="card-slot">
           {% if pick_opp_card %}
@@ -159,25 +159,12 @@
     <h2>Your Hand
       {% if is_game_over %}
         <span class="score-badge">Score: {{ player_score }}</span>
-      {% else %}
-        {% set known_sum = namespace(v=0) %}
-        {% set unknown   = namespace(n=0) %}
-        {% for i in range(state.player_hand | length) %}
-          {% if state.player_known[i] %}
-            {% set known_sum.v = known_sum.v + card_value(state.player_hand[i]) %}
-          {% else %}
-            {% set unknown.n = unknown.n + 1 %}
-          {% endif %}
-        {% endfor %}
-        <span class="score-hint">
-          Known: {{ known_sum.v }}{% if unknown.n %} + {{ unknown.n }} unknown{% endif %}
-        </span>
       {% endif %}
     </h2>
     <div class="hand-grid">
       {% for i in range(state.player_hand | length) %}
         {% set card  = state.player_hand[i] %}
-        {% set known = state.player_known[i] or is_peek %}
+        {% set known = (i in state.player_reveal) or (is_peek and (i == 2 or i == 3)) %}
         {% set can_snap = (is_player_draw) and (i in snap_eligible) %}
 
         <div class="card-slot">
@@ -233,7 +220,7 @@
           {% else %}
             {# Non-interactive display #}
             {% if known %}
-              <div class="card {{ 'red' if is_red(card) else 'black' }} {% if is_peek and (i == 2 or i == 3) %}peeking{% endif %}">
+              <div class="card {{ 'red' if is_red(card) else 'black' }} {% if is_peek %}peeking{% endif %}">
                 <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
                 <span class="center">{{ card.suit }}</span>
                 <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
