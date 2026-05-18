@@ -202,19 +202,15 @@
             </form>
 
           {% elif can_snap %}
-            {# Snap a matching card #}
+            {# Snap a matching card — always face-up since discard top is public #}
             <form hx-post="/move" hx-target="#board" hx-swap="outerHTML" style="display:contents">
               <input type="hidden" name="action"     value="snap">
               <input type="hidden" name="hand_index" value="{{ i }}">
-              {% if known %}
-                <button type="submit" class="card {{ 'red' if is_red(card) else 'black' }} clickable snap-target">
-                  <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
-                  <span class="center">{{ card.suit }}</span>
-                  <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
-                </button>
-              {% else %}
-                <button type="submit" class="card face-down clickable snap-target"></button>
-              {% endif %}
+              <button type="submit" class="card {{ 'red' if is_red(card) else 'black' }} clickable snap-target">
+                <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
+                <span class="center">{{ card.suit }}</span>
+                <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
+              </button>
             </form>
 
           {% else %}
