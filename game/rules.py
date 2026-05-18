@@ -146,6 +146,7 @@ def apply_move(state, move):
     if action == "start":
         s["phase"] = PHASE_PLAYER_DRAW
         s["message"] = "Your turn: draw a card or call Cambio."
+        s["player_known"] = [False, False, False, False]
         return s
 
     if action == "call_cambio":
