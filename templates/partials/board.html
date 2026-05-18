@@ -1,8 +1,23 @@
 {% set phase = state.phase %}
-{% set is_peek = phase == "peek" %}
-{% set is_player_draw = phase == "player_draw" %}
+{% set is_peek          = phase == "peek" %}
+{% set is_player_draw   = phase == "player_draw" %}
 {% set is_player_action = phase == "player_action" %}
-{% set is_game_over = phase == "game_over" %}
+{% set is_special       = phase == "player_special" %}
+{% set is_game_over     = phase == "game_over" %}
+{% set sa = state.special_action %}
+
+{# Which cards are clickable during special phases #}
+{% set pick_own_card  = is_special and sa and (
+    sa.type == "peek_own" or
+    (sa.type == "blind_switch"    and sa.step == 1) or
+    (sa.type == "looking_switch"  and sa.step == 1)
+) %}
+{% set pick_opp_card  = is_special and sa and (
+    sa.type == "peek_opponent" or
+    (sa.type == "blind_switch"    and sa.step == 2) or
+    (sa.type == "looking_switch"  and sa.step == 2)
+) %}
+{% set is_deciding    = is_special and sa and sa.type == "looking_switch" and sa.step == 3 %}
 
 <div id="board">
 
@@ -13,29 +28,50 @@
     </form>
   </header>
 
-  {# ── Computer hand ── #}
+  {# ── Computer hand (2×2) ───────────────────────────────────────────────── #}
   <section class="area computer-area">
     <h2>Computer's Hand
       {% if is_game_over %}
         <span class="score-badge">Score: {{ computer_score }}</span>
       {% endif %}
     </h2>
-    <div class="hand">
-      {% for card in state.computer_hand %}
-        {% if is_game_over %}
-          <div class="card {{ 'red' if is_red(card) else 'black' }}">
-            <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
-            <span class="center">{{ card.suit }}</span>
-            <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
-          </div>
-        {% else %}
-          <div class="card face-down"></div>
-        {% endif %}
+    <div class="hand-grid">
+      {% for i in range(state.computer_hand | length) %}
+        {% set card = state.computer_hand[i] %}
+        {% set player_sees = state.player_opponent_known[i] if i < state.player_opponent_known | length else false %}
+        {% set face_up = is_game_over or player_sees %}
+        <div class="card-slot">
+          {% if pick_opp_card %}
+            <form hx-post="/move" hx-target="#board" hx-swap="outerHTML" style="display:contents">
+              <input type="hidden" name="action"     value="pick_card">
+              <input type="hidden" name="owner"      value="computer">
+              <input type="hidden" name="hand_index" value="{{ i }}">
+              {% if face_up %}
+                <button type="submit" class="card {{ 'red' if is_red(card) else 'black' }} clickable special-target">
+                  <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
+                  <span class="center">{{ card.suit }}</span>
+                  <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
+                </button>
+              {% else %}
+                <button type="submit" class="card face-down clickable special-target"></button>
+              {% endif %}
+            </form>
+          {% elif face_up %}
+            <div class="card {{ 'red' if is_red(card) else 'black' }} {% if player_sees and not is_game_over %}peeked{% endif %}">
+              <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
+              <span class="center">{{ card.suit }}</span>
+              <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
+            </div>
+          {% else %}
+            <div class="card face-down"></div>
+          {% endif %}
+          <div class="card-label">{{ i + 1 }}</div>
+        </div>
       {% endfor %}
     </div>
   </section>
 
-  {# ── Table: deck / discard / drawn card ── #}
+  {# ── Table: deck / discard / drawn card ───────────────────────────────── #}
   <section class="area table-area">
 
     <div class="pile-group">
@@ -46,7 +82,7 @@
           <button type="submit" class="card face-down clickable" title="Draw from deck"></button>
         </form>
       {% else %}
-        <div class="card face-down {% if not state.deck %}empty{% endif %}"></div>
+        <div class="card face-down"></div>
       {% endif %}
     </div>
 
@@ -87,22 +123,46 @@
       </div>
     {% endif %}
 
+    {# Show peeked cards during looking_switch step 3 #}
+    {% if is_deciding and sa.picks | length == 2 %}
+      {% set my_card   = state.player_hand[sa.picks[0].index] %}
+      {% set opp_card  = state.computer_hand[sa.picks[1].index] %}
+      <div class="peek-pair">
+        <div class="pile-group">
+          <p class="pile-label">Your card (pos {{ sa.picks[0].index + 1 }})</p>
+          <div class="card {{ 'red' if is_red(my_card) else 'black' }} peeking">
+            <span class="corner top">{{ my_card.rank }}<br>{{ my_card.suit }}</span>
+            <span class="center">{{ my_card.suit }}</span>
+            <span class="corner bottom">{{ my_card.rank }}<br>{{ my_card.suit }}</span>
+          </div>
+        </div>
+        <div class="pile-group">
+          <p class="pile-label">Computer (pos {{ sa.picks[1].index + 1 }})</p>
+          <div class="card {{ 'red' if is_red(opp_card) else 'black' }} peeked">
+            <span class="corner top">{{ opp_card.rank }}<br>{{ opp_card.suit }}</span>
+            <span class="center">{{ opp_card.suit }}</span>
+            <span class="corner bottom">{{ opp_card.rank }}<br>{{ opp_card.suit }}</span>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
   </section>
 
-  {# ── Message ── #}
-  <div class="message-bar">
+  {# ── Message ──────────────────────────────────────────────────────────── #}
+  <div class="message-bar {% if is_special %}message-special{% endif %}">
     {{ state.message }}
   </div>
 
-  {# ── Player hand ── #}
+  {# ── Player hand (2×2) ────────────────────────────────────────────────── #}
   <section class="area player-area">
     <h2>Your Hand
       {% if is_game_over %}
         <span class="score-badge">Score: {{ player_score }}</span>
       {% else %}
         {% set known_sum = namespace(v=0) %}
-        {% set unknown = namespace(n=0) %}
-        {% for i in range(4) %}
+        {% set unknown   = namespace(n=0) %}
+        {% for i in range(state.player_hand | length) %}
           {% if state.player_known[i] %}
             {% set known_sum.v = known_sum.v + card_value(state.player_hand[i]) %}
           {% else %}
@@ -114,42 +174,84 @@
         </span>
       {% endif %}
     </h2>
-    <div class="hand">
-      {% for i in range(4) %}
-        {% set card = state.player_hand[i] %}
+    <div class="hand-grid">
+      {% for i in range(state.player_hand | length) %}
+        {% set card  = state.player_hand[i] %}
         {% set known = state.player_known[i] or is_peek %}
-        {% if is_player_action %}
-          <form hx-post="/move" hx-target="#board" hx-swap="outerHTML" style="display:inline">
-            <input type="hidden" name="action" value="swap">
-            <input type="hidden" name="hand_index" value="{{ i }}">
+        {% set can_snap = (is_player_draw) and (i in snap_eligible) %}
+
+        <div class="card-slot">
+          {% if is_player_action %}
+            {# Swap drawn card with this hand card #}
+            <form hx-post="/move" hx-target="#board" hx-swap="outerHTML" style="display:contents">
+              <input type="hidden" name="action"     value="swap">
+              <input type="hidden" name="hand_index" value="{{ i }}">
+              {% if known %}
+                <button type="submit" class="card {{ 'red' if is_red(card) else 'black' }} clickable swap-target">
+                  <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
+                  <span class="center">{{ card.suit }}</span>
+                  <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
+                </button>
+              {% else %}
+                <button type="submit" class="card face-down clickable swap-target"></button>
+              {% endif %}
+            </form>
+
+          {% elif pick_own_card %}
+            {# Pick own card for special ability #}
+            <form hx-post="/move" hx-target="#board" hx-swap="outerHTML" style="display:contents">
+              <input type="hidden" name="action"     value="pick_card">
+              <input type="hidden" name="owner"      value="player">
+              <input type="hidden" name="hand_index" value="{{ i }}">
+              {% if known %}
+                <button type="submit" class="card {{ 'red' if is_red(card) else 'black' }} clickable special-target">
+                  <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
+                  <span class="center">{{ card.suit }}</span>
+                  <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
+                </button>
+              {% else %}
+                <button type="submit" class="card face-down clickable special-target"></button>
+              {% endif %}
+            </form>
+
+          {% elif can_snap %}
+            {# Snap a matching card #}
+            <form hx-post="/move" hx-target="#board" hx-swap="outerHTML" style="display:contents">
+              <input type="hidden" name="action"     value="snap">
+              <input type="hidden" name="hand_index" value="{{ i }}">
+              {% if known %}
+                <button type="submit" class="card {{ 'red' if is_red(card) else 'black' }} clickable snap-target">
+                  <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
+                  <span class="center">{{ card.suit }}</span>
+                  <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
+                </button>
+              {% else %}
+                <button type="submit" class="card face-down clickable snap-target"></button>
+              {% endif %}
+            </form>
+
+          {% else %}
+            {# Non-interactive display #}
             {% if known %}
-              <button type="submit" class="card {{ 'red' if is_red(card) else 'black' }} clickable swap-target" title="Swap position {{ i+1 }}">
+              <div class="card {{ 'red' if is_red(card) else 'black' }} {% if is_peek and (i == 2 or i == 3) %}peeking{% endif %}">
                 <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
                 <span class="center">{{ card.suit }}</span>
                 <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
-              </button>
+              </div>
             {% else %}
-              <button type="submit" class="card face-down clickable swap-target" title="Swap position {{ i+1 }}"></button>
+              <div class="card face-down"></div>
             {% endif %}
-          </form>
-        {% else %}
-          {% if known %}
-            <div class="card {{ 'red' if is_red(card) else 'black' }} {% if is_peek and (i == 2 or i == 3) %}peeking{% endif %}">
-              <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
-              <span class="center">{{ card.suit }}</span>
-              <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
-            </div>
-          {% else %}
-            <div class="card face-down"></div>
           {% endif %}
-        {% endif %}
-        <div class="card-label">{{ i + 1 }}</div>
+
+          <div class="card-label">{{ i + 1 }}</div>
+        </div>
       {% endfor %}
     </div>
   </section>
 
-  {# ── Action buttons ── #}
+  {# ── Action buttons ───────────────────────────────────────────────────── #}
   <section class="controls">
+
     {% if is_peek %}
       <form hx-post="/move" hx-target="#board" hx-swap="outerHTML">
         <input type="hidden" name="action" value="start">
@@ -164,12 +266,36 @@
       </form>
     {% endif %}
 
+    {% if snap_eligible and is_player_draw %}
+      <p class="hint snap-hint">Snap! You have a card matching the discard — click it to snap.</p>
+    {% endif %}
+
     {% if is_player_action %}
       <form hx-post="/move" hx-target="#board" hx-swap="outerHTML">
         <input type="hidden" name="action" value="discard_drawn">
         <button type="submit" class="btn btn-secondary">Discard Drawn Card</button>
       </form>
       <p class="hint">…or click a hand card above to swap</p>
+    {% endif %}
+
+    {% if is_special and not is_deciding %}
+      <form hx-post="/move" hx-target="#board" hx-swap="outerHTML">
+        <input type="hidden" name="action" value="skip_special">
+        <button type="submit" class="btn btn-secondary">Skip Power</button>
+      </form>
+    {% endif %}
+
+    {% if is_deciding %}
+      <form hx-post="/move" hx-target="#board" hx-swap="outerHTML" style="display:inline">
+        <input type="hidden" name="action"    value="decide_switch">
+        <input type="hidden" name="do_switch" value="true">
+        <button type="submit" class="btn btn-primary">Switch</button>
+      </form>
+      <form hx-post="/move" hx-target="#board" hx-swap="outerHTML" style="display:inline">
+        <input type="hidden" name="action"    value="decide_switch">
+        <input type="hidden" name="do_switch" value="false">
+        <button type="submit" class="btn btn-secondary">Don't Switch</button>
+      </form>
     {% endif %}
 
     {% if is_game_over %}
@@ -184,9 +310,10 @@
         <button type="submit" class="btn btn-primary">Play Again</button>
       </form>
     {% endif %}
+
   </section>
 
-  {# ── Game log ── #}
+  {# ── Game log ─────────────────────────────────────────────────────────── #}
   {% if state.log %}
     <section class="log-area">
       {% for entry in state.log | reverse %}

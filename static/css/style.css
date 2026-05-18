@@ -51,11 +51,18 @@ header h1 {
 }
 
 /* ── Cards ── */
-.hand {
-  display: flex;
+.hand-grid {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
   gap: 10px;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  width: fit-content;
+}
+
+.card-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 
 .card {
@@ -115,9 +122,30 @@ header h1 {
   outline-offset: 2px;
 }
 
+.card.peeked {
+  outline: 3px solid #a78bfa;
+  outline-offset: 2px;
+}
+
 .card.swap-target:hover {
   outline: 3px solid #f5e040;
   outline-offset: 2px;
+}
+
+.card.special-target:hover {
+  outline: 3px solid #a78bfa;
+  outline-offset: 2px;
+}
+
+.card.snap-target {
+  outline: 3px solid #f97316;
+  outline-offset: 2px;
+  animation: snap-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes snap-pulse {
+  from { box-shadow: 2px 3px 8px rgba(0,0,0,0.4); }
+  to   { box-shadow: 0 0 16px rgba(249,115,22,0.7); }
 }
 
 .corner {
@@ -142,8 +170,6 @@ header h1 {
   text-align: center;
   font-size: 0.7rem;
   color: #a0c0a0;
-  margin-top: 4px;
-  width: 72px;
 }
 
 /* ── Table area ── */
@@ -177,6 +203,22 @@ header h1 {
   font-size: 0.95rem;
   color: #e8f5e0;
   min-height: 2.4rem;
+}
+
+.message-special {
+  border-left-color: #a78bfa;
+  background: rgba(100,60,180,0.25);
+}
+
+.snap-hint {
+  color: #f97316;
+  font-weight: bold;
+}
+
+.peek-pair {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
 }
 
 /* ── Controls ── */
