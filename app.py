@@ -2,12 +2,14 @@ import uuid
 from flask import Flask, render_template, request, session, redirect, url_for
 
 from game.engine import GameEngine
-from game.rules import card_value, hand_value, is_red, get_scores, PHASE_GAME_OVER
+from game.rules import (
+    card_value, hand_value, is_red, get_scores,
+    snap_eligible_indices, PHASE_GAME_OVER,
+)
 
 app = Flask(__name__)
 app.secret_key = "cambio-dev-secret"
 
-# In-memory game store: session_id -> GameEngine
 GAMES: dict[str, GameEngine] = {}
 
 
@@ -32,6 +34,7 @@ def _template_context(engine: GameEngine) -> dict:
         "is_red": is_red,
         "player_score": player_score,
         "computer_score": computer_score,
+        "snap_eligible": snap_eligible_indices(s["player_hand"], s["discard_pile"]),
     }
 
 
@@ -52,11 +55,17 @@ def play():
 @app.route("/move", methods=["POST"])
 def move():
     engine = _get_engine()
-    action = request.form.get("action")
+    action     = request.form.get("action")
     hand_index = request.form.get("hand_index")
-    if hand_index is not None:
-        hand_index = int(hand_index)
-    engine.player_move(action, hand_index)
+    owner      = request.form.get("owner")
+    do_switch  = request.form.get("do_switch")
+
+    kwargs = {}
+    if hand_index is not None: kwargs["hand_index"] = int(hand_index)
+    if owner is not None:      kwargs["owner"] = owner
+    if do_switch is not None:  kwargs["do_switch"] = (do_switch == "true")
+
+    engine.player_move(action, **kwargs)
     ctx = _template_context(engine)
     return render_template("partials/board.html", **ctx)
 
