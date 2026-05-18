@@ -1,0 +1,198 @@
+{% set phase = state.phase %}
+{% set is_peek = phase == "peek" %}
+{% set is_player_draw = phase == "player_draw" %}
+{% set is_player_action = phase == "player_action" %}
+{% set is_game_over = phase == "game_over" %}
+
+<div id="board">
+
+  <header>
+    <h1>Cambio</h1>
+    <form hx-post="/new" hx-target="#board" hx-swap="outerHTML">
+      <button type="submit" class="btn btn-secondary">New Game</button>
+    </form>
+  </header>
+
+  {# ── Computer hand ── #}
+  <section class="area computer-area">
+    <h2>Computer's Hand
+      {% if is_game_over %}
+        <span class="score-badge">Score: {{ computer_score }}</span>
+      {% endif %}
+    </h2>
+    <div class="hand">
+      {% for card in state.computer_hand %}
+        {% if is_game_over %}
+          <div class="card {{ 'red' if is_red(card) else 'black' }}">
+            <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
+            <span class="center">{{ card.suit }}</span>
+            <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
+          </div>
+        {% else %}
+          <div class="card face-down"></div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ── Table: deck / discard / drawn card ── #}
+  <section class="area table-area">
+
+    <div class="pile-group">
+      <p class="pile-label">Deck ({{ state.deck | length }})</p>
+      {% if is_player_draw %}
+        <form hx-post="/move" hx-target="#board" hx-swap="outerHTML">
+          <input type="hidden" name="action" value="draw_deck">
+          <button type="submit" class="card face-down clickable" title="Draw from deck"></button>
+        </form>
+      {% else %}
+        <div class="card face-down {% if not state.deck %}empty{% endif %}"></div>
+      {% endif %}
+    </div>
+
+    <div class="pile-group">
+      <p class="pile-label">Discard</p>
+      {% if state.discard_pile %}
+        {% set top = state.discard_pile[-1] %}
+        {% if is_player_draw %}
+          <form hx-post="/move" hx-target="#board" hx-swap="outerHTML">
+            <input type="hidden" name="action" value="draw_discard">
+            <button type="submit" class="card {{ 'red' if is_red(top) else 'black' }} clickable" title="Draw from discard">
+              <span class="corner top">{{ top.rank }}<br>{{ top.suit }}</span>
+              <span class="center">{{ top.suit }}</span>
+              <span class="corner bottom">{{ top.rank }}<br>{{ top.suit }}</span>
+            </button>
+          </form>
+        {% else %}
+          <div class="card {{ 'red' if is_red(top) else 'black' }}">
+            <span class="corner top">{{ top.rank }}<br>{{ top.suit }}</span>
+            <span class="center">{{ top.suit }}</span>
+            <span class="corner bottom">{{ top.rank }}<br>{{ top.suit }}</span>
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="card empty"></div>
+      {% endif %}
+    </div>
+
+    {% if state.drawn_card %}
+      {% set dc = state.drawn_card %}
+      <div class="pile-group">
+        <p class="pile-label">In Hand</p>
+        <div class="card {{ 'red' if is_red(dc) else 'black' }} drawn-card">
+          <span class="corner top">{{ dc.rank }}<br>{{ dc.suit }}</span>
+          <span class="center">{{ dc.suit }}</span>
+          <span class="corner bottom">{{ dc.rank }}<br>{{ dc.suit }}</span>
+        </div>
+      </div>
+    {% endif %}
+
+  </section>
+
+  {# ── Message ── #}
+  <div class="message-bar">
+    {{ state.message }}
+  </div>
+
+  {# ── Player hand ── #}
+  <section class="area player-area">
+    <h2>Your Hand
+      {% if is_game_over %}
+        <span class="score-badge">Score: {{ player_score }}</span>
+      {% else %}
+        {% set known_sum = namespace(v=0) %}
+        {% set unknown = namespace(n=0) %}
+        {% for i in range(4) %}
+          {% if state.player_known[i] %}
+            {% set known_sum.v = known_sum.v + card_value(state.player_hand[i]) %}
+          {% else %}
+            {% set unknown.n = unknown.n + 1 %}
+          {% endif %}
+        {% endfor %}
+        <span class="score-hint">
+          Known: {{ known_sum.v }}{% if unknown.n %} + {{ unknown.n }} unknown{% endif %}
+        </span>
+      {% endif %}
+    </h2>
+    <div class="hand">
+      {% for i in range(4) %}
+        {% set card = state.player_hand[i] %}
+        {% set known = state.player_known[i] or is_peek %}
+        {% if is_player_action %}
+          <form hx-post="/move" hx-target="#board" hx-swap="outerHTML" style="display:inline">
+            <input type="hidden" name="action" value="swap">
+            <input type="hidden" name="hand_index" value="{{ i }}">
+            {% if known %}
+              <button type="submit" class="card {{ 'red' if is_red(card) else 'black' }} clickable swap-target" title="Swap position {{ i+1 }}">
+                <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
+                <span class="center">{{ card.suit }}</span>
+                <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
+              </button>
+            {% else %}
+              <button type="submit" class="card face-down clickable swap-target" title="Swap position {{ i+1 }}"></button>
+            {% endif %}
+          </form>
+        {% else %}
+          {% if known %}
+            <div class="card {{ 'red' if is_red(card) else 'black' }} {% if is_peek and (i == 2 or i == 3) %}peeking{% endif %}">
+              <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
+              <span class="center">{{ card.suit }}</span>
+              <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
+            </div>
+          {% else %}
+            <div class="card face-down"></div>
+          {% endif %}
+        {% endif %}
+        <div class="card-label">{{ i + 1 }}</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ── Action buttons ── #}
+  <section class="controls">
+    {% if is_peek %}
+      <form hx-post="/move" hx-target="#board" hx-swap="outerHTML">
+        <input type="hidden" name="action" value="start">
+        <button type="submit" class="btn btn-primary">Start Game</button>
+      </form>
+    {% endif %}
+
+    {% if is_player_draw and not state.cambio_called_by %}
+      <form hx-post="/move" hx-target="#board" hx-swap="outerHTML">
+        <input type="hidden" name="action" value="call_cambio">
+        <button type="submit" class="btn btn-danger">Call Cambio</button>
+      </form>
+    {% endif %}
+
+    {% if is_player_action %}
+      <form hx-post="/move" hx-target="#board" hx-swap="outerHTML">
+        <input type="hidden" name="action" value="discard_drawn">
+        <button type="submit" class="btn btn-secondary">Discard Drawn Card</button>
+      </form>
+      <p class="hint">…or click a hand card above to swap</p>
+    {% endif %}
+
+    {% if is_game_over %}
+      {% if player_score < computer_score %}
+        <div class="result win">You win! {{ player_score }} vs {{ computer_score }}</div>
+      {% elif computer_score < player_score %}
+        <div class="result lose">Computer wins. {{ computer_score }} vs {{ player_score }}</div>
+      {% else %}
+        <div class="result tie">Tie! Both scored {{ player_score }}</div>
+      {% endif %}
+      <form hx-post="/new" hx-target="#board" hx-swap="outerHTML">
+        <button type="submit" class="btn btn-primary">Play Again</button>
+      </form>
+    {% endif %}
+  </section>
+
+  {# ── Game log ── #}
+  {% if state.log %}
+    <section class="log-area">
+      {% for entry in state.log | reverse %}
+        <div class="log-entry">{{ entry }}</div>
+      {% endfor %}
+    </section>
+  {% endif %}
+
+</div>
