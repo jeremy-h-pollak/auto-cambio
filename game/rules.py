@@ -206,7 +206,6 @@ def apply_move(state, move):
         s[kk][idx] = True
         s["drawn_card"] = None
         if s["current_turn"] == "player":
-            s["player_reveal"].append(idx)  # player sees the card they just kept
             msg = f"You swapped position {idx+1} (discarded {old['rank']}{old['suit']})."
         else:
             msg = f"Computer swapped position {idx+1} (discarded {old['rank']}{old['suit']})."
@@ -275,7 +274,6 @@ def apply_move(state, move):
 
         if stype == "peek_own":
             s["player_known"][idx] = True
-            s["player_reveal"].append(idx)
             msg = f"You peeked at your position {idx+1}: {card['rank']}{card['suit']}."
             s["message"] = msg; s["log"].append(msg)
             s["special_action"] = None
@@ -283,7 +281,6 @@ def apply_move(state, move):
 
         if stype == "peek_opponent":
             s["player_opponent_known"][idx] = True
-            s["player_opponent_reveal"].append(idx)
             msg = f"You peeked at computer's position {idx+1}: {card['rank']}{card['suit']}."
             s["message"] = msg; s["log"].append(msg)
             s["special_action"] = None
@@ -312,14 +309,12 @@ def apply_move(state, move):
         if stype == "looking_switch":
             if step == 1:
                 s["player_known"][idx] = True
-                s["player_reveal"].append(idx)
                 sa["picks"].append({"owner": "player", "index": idx})
                 sa["step"] = 2
                 s["message"] = special_message("looking_switch", 2)
                 return s
             if step == 2:
                 s["player_opponent_known"][idx] = True
-                s["player_opponent_reveal"].append(idx)
                 sa["picks"].append({"owner": "computer", "index": idx})
                 sa["step"] = 3
                 s["message"] = special_message("looking_switch", 3)
@@ -340,8 +335,6 @@ def apply_move(state, move):
             s["computer_hand"][their_idx]         = my_card
             s["player_known"][my_idx]             = True
             s["player_opponent_known"][their_idx] = True
-            s["player_reveal"].append(my_idx)           # briefly see new card in hand
-            s["player_opponent_reveal"].append(their_idx)
             msg = f"You switched your position {my_idx+1} with computer's position {their_idx+1}."
         else:
             msg = "You chose not to switch."
