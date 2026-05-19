@@ -44,7 +44,9 @@
         {% set can_opp_snap = is_player_draw and (i in opp_snap_eligible) %}
         {% set comp_acted = i in state.computer_acted %}
         <div class="card-slot">
-          {% if pick_opp_card %}
+          {% if card is none %}
+            <div class="card empty"></div>
+          {% elif pick_opp_card %}
             <form hx-post="/move" hx-target="#board" hx-swap="outerHTML" style="display:contents">
               <input type="hidden" name="action"     value="pick_card">
               <input type="hidden" name="owner"      value="computer">
@@ -184,7 +186,18 @@
         {% set player_touched = i in state.player_touched %}
 
         <div class="card-slot">
-          {% if is_player_action %}
+          {% if card is none %}
+            {% if is_player_action %}
+              {# Allow placing drawn card into empty slot #}
+              <form hx-post="/move" hx-target="#board" hx-swap="outerHTML" style="display:contents">
+                <input type="hidden" name="action"     value="swap">
+                <input type="hidden" name="hand_index" value="{{ i }}">
+                <button type="submit" class="card empty clickable swap-target"></button>
+              </form>
+            {% else %}
+              <div class="card empty"></div>
+            {% endif %}
+          {% elif is_player_action %}
             {# Swap drawn card with this hand card #}
             <form hx-post="/move" hx-target="#board" hx-swap="outerHTML" style="display:contents">
               <input type="hidden" name="action"     value="swap">

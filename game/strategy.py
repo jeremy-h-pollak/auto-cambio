@@ -31,8 +31,10 @@ def choose_move(state, known_indices):
         return {"action": "discard_drawn"}
     if random.random() < 0.4:
         return {"action": "discard_drawn"}
-    hand_size = len(state["computer_hand"])
-    return {"action": "swap", "hand_index": random.randint(0, hand_size - 1)}
+    valid = [i for i, c in enumerate(state["computer_hand"]) if c is not None]
+    if not valid:
+        return {"action": "discard_drawn"}
+    return {"action": "swap", "hand_index": random.choice(valid)}
 
 
 def should_snap(state, hand_index):
@@ -53,7 +55,7 @@ def apply_computer_special(state, stype):
     player_opp_known = state["player_opponent_known"]
 
     if stype == "peek_own":
-        unknown = [i for i, k in enumerate(computer_known) if not k]
+        unknown = [i for i, k in enumerate(computer_known) if not k and computer_hand[i] is not None]
         if unknown:
             idx = random.choice(unknown)
             computer_known[idx] = True
@@ -66,8 +68,9 @@ def apply_computer_special(state, stype):
         state["log"].append(msg)
 
     elif stype == "peek_opponent":
-        if player_hand:
-            idx = random.randint(0, len(player_hand) - 1)
+        valid = [i for i, c in enumerate(player_hand) if c is not None]
+        if valid:
+            idx = random.choice(valid)
             c = player_hand[idx]
             state["player_reveal"].append(idx)
             msg = f"Computer used 9/10: peeked at your position {idx+1} ({c['rank']}{c['suit']})!"
@@ -75,9 +78,11 @@ def apply_computer_special(state, stype):
             state["log"].append(msg)
 
     elif stype == "blind_switch":
-        if computer_hand and player_hand:
-            my_idx   = random.randint(0, len(computer_hand) - 1)
-            opp_idx  = random.randint(0, len(player_hand) - 1)
+        comp_valid   = [i for i, c in enumerate(computer_hand) if c is not None]
+        player_valid = [i for i, c in enumerate(player_hand)   if c is not None]
+        if comp_valid and player_valid:
+            my_idx   = random.choice(comp_valid)
+            opp_idx  = random.choice(player_valid)
             computer_hand[my_idx], player_hand[opp_idx] = \
                 player_hand[opp_idx], computer_hand[my_idx]
             computer_known[my_idx]     = False
@@ -92,9 +97,11 @@ def apply_computer_special(state, stype):
             state["log"].append(msg)
 
     elif stype == "looking_switch":
-        if computer_hand and player_hand:
-            my_idx  = random.randint(0, len(computer_hand) - 1)
-            opp_idx = random.randint(0, len(player_hand) - 1)
+        comp_valid   = [i for i, c in enumerate(computer_hand) if c is not None]
+        player_valid = [i for i, c in enumerate(player_hand)   if c is not None]
+        if comp_valid and player_valid:
+            my_idx  = random.choice(comp_valid)
+            opp_idx = random.choice(player_valid)
             my_card  = computer_hand[my_idx]
             opp_card = player_hand[opp_idx]
             state["player_reveal"].append(opp_idx)
