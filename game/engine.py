@@ -35,7 +35,8 @@ class GameEngine:
     def _run_computer_snaps(self):
         while self.state["phase"] not in (PHASE_GAME_OVER, PHASE_PLAYER_SPECIAL):
             eligible = snap_eligible_indices(
-                self.state["computer_hand"], self.state["discard_pile"]
+                self.state["computer_hand"], self.state["discard_pile"],
+                self.state["computer_known"],
             )
             snapped = False
             for idx in eligible:
@@ -43,7 +44,8 @@ class GameEngine:
                     # Simultaneous snap: if player can also snap, 50/50 race
                     if self.state["phase"] == PHASE_PLAYER_DRAW:
                         player_own = snap_eligible_indices(
-                            self.state["player_hand"], self.state["discard_pile"]
+                            self.state["player_hand"], self.state["discard_pile"],
+                            self.state["player_known"],
                         )
                         player_opp = opp_snap_eligible_indices(
                             self.state["computer_hand"],
