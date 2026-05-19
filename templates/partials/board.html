@@ -180,7 +180,7 @@
       {% for i in range(state.player_hand | length) %}
         {% set card  = state.player_hand[i] %}
         {% set known = is_game_over or (i in state.player_reveal) or (is_peek and (i == 2 or i == 3)) %}
-        {% set can_snap = (is_player_draw) and (i in snap_eligible) %}
+        {% set can_snap = (is_player_draw or is_peek) and (i in snap_eligible) %}
         {% set player_touched = i in state.player_touched %}
 
         <div class="card-slot">
