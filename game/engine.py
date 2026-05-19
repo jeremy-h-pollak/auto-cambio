@@ -3,10 +3,11 @@ GameEngine: owns state, drives turn flow.
 Computer turns (including snaps and special abilities) run synchronously.
 """
 
+import random
 from .rules import (
     apply_move, create_initial_state,
-    snap_eligible_indices, special_type,
-    PHASE_GAME_OVER, COMPUTER_TURN,
+    snap_eligible_indices, opp_snap_eligible_indices, special_type,
+    PHASE_GAME_OVER, PHASE_PLAYER_DRAW, PHASE_PLAYER_SPECIAL, COMPUTER_TURN,
 )
 from .strategy import choose_move, should_snap, apply_computer_special
 
@@ -32,13 +33,25 @@ class GameEngine:
 
     # ── Computer snap: check after any state change ───────────────────────────
     def _run_computer_snaps(self):
-        while self.state["phase"] != PHASE_GAME_OVER:
+        while self.state["phase"] not in (PHASE_GAME_OVER, PHASE_PLAYER_SPECIAL):
             eligible = snap_eligible_indices(
                 self.state["computer_hand"], self.state["discard_pile"]
             )
             snapped = False
             for idx in eligible:
                 if should_snap(self.state, idx):
+                    # Simultaneous snap: if player can also snap, 50/50 race
+                    if self.state["phase"] == PHASE_PLAYER_DRAW:
+                        player_own = snap_eligible_indices(
+                            self.state["player_hand"], self.state["discard_pile"]
+                        )
+                        player_opp = opp_snap_eligible_indices(
+                            self.state["computer_hand"],
+                            self.state["player_opponent_known"],
+                            self.state["discard_pile"],
+                        )
+                        if (player_own or player_opp) and random.random() < 0.5:
+                            return  # player wins the race
                     self.state = apply_move(
                         self.state, {"action": "snap", "by": "computer", "hand_index": idx}
                     )
