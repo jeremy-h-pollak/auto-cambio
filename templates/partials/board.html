@@ -42,6 +42,7 @@
         {% set player_sees = i in state.player_opponent_reveal %}
         {% set face_up = is_game_over or player_sees %}
         {% set can_opp_snap = is_player_draw and (i in opp_snap_eligible) %}
+        {% set comp_acted = i in state.computer_acted %}
         <div class="card-slot">
           {% if pick_opp_card %}
             <form hx-post="/move" hx-target="#board" hx-swap="outerHTML" style="display:contents">
@@ -77,7 +78,7 @@
               <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
             </div>
           {% else %}
-            <div class="card face-down"></div>
+            <div class="card face-down {% if comp_acted %}acted{% endif %}"></div>
           {% endif %}
           <div class="card-label">{{ i + 1 }}</div>
         </div>
@@ -180,6 +181,7 @@
         {% set card  = state.player_hand[i] %}
         {% set known = is_game_over or (i in state.player_reveal) or (is_peek and (i == 2 or i == 3)) %}
         {% set can_snap = (is_player_draw) and (i in snap_eligible) %}
+        {% set player_touched = i in state.player_touched %}
 
         <div class="card-slot">
           {% if is_player_action %}
@@ -230,13 +232,13 @@
           {% else %}
             {# Non-interactive display #}
             {% if known %}
-              <div class="card {{ 'red' if is_red(card) else 'black' }} {% if is_peek %}peeking{% endif %}">
+              <div class="card {{ 'red' if is_red(card) else 'black' }} {% if is_peek %}peeking{% endif %} {% if player_touched %}touched{% endif %}">
                 <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
                 <span class="center">{{ card.suit }}</span>
                 <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
               </div>
             {% else %}
-              <div class="card face-down"></div>
+              <div class="card face-down {% if player_touched %}touched{% endif %}"></div>
             {% endif %}
           {% endif %}
 

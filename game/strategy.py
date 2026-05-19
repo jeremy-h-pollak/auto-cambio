@@ -58,6 +58,7 @@ def apply_computer_special(state, stype):
             idx = random.choice(unknown)
             computer_known[idx] = True
             c = computer_hand[idx]
+            state["computer_acted"] = [idx]
             msg = f"Computer used 7/8: peeked at its own position {idx+1} ({c['rank']}{c['suit']})."
         else:
             msg = "Computer used 7/8: already knows all its cards."
@@ -83,6 +84,8 @@ def apply_computer_special(state, stype):
             player_known[opp_idx]      = False
             if my_idx < len(player_opp_known):
                 player_opp_known[my_idx] = False
+            state["computer_acted"] = [my_idx]
+            state["player_touched"] = [opp_idx]
             msg = (f"Computer used J/Q: blind-switched its position {my_idx+1} "
                    f"with your position {opp_idx+1}!")
             state["message"] = msg
@@ -95,6 +98,8 @@ def apply_computer_special(state, stype):
             my_card  = computer_hand[my_idx]
             opp_card = player_hand[opp_idx]
             state["player_reveal"].append(opp_idx)
+            state["computer_acted"] = [my_idx]
+            state["player_touched"] = [opp_idx]
             # Switch if opponent's card is better (lower value) for computer
             if card_value(opp_card) < card_value(my_card):
                 computer_hand[my_idx]  = opp_card

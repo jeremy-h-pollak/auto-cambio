@@ -148,6 +148,23 @@ header h1 {
   to   { box-shadow: 0 0 16px rgba(249,115,22,0.7); }
 }
 
+.card.acted {
+  outline: 3px solid #fbbf24;
+  outline-offset: 2px;
+  animation: acted-pulse 0.7s ease-in-out 3;
+}
+
+.card.touched {
+  outline: 3px solid #f87171;
+  outline-offset: 2px;
+  animation: acted-pulse 0.7s ease-in-out 3;
+}
+
+@keyframes acted-pulse {
+  from { box-shadow: 2px 3px 8px rgba(0,0,0,0.4); }
+  to   { box-shadow: 0 0 14px rgba(251,191,36,0.7); }
+}
+
 .corner {
   font-size: 13px;
   font-weight: bold;

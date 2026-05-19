@@ -108,6 +108,8 @@ def create_initial_state():
         # then cleared at the start of the next apply_move call.
         "player_reveal":        [],
         "player_opponent_reveal":[],
+        "computer_acted":       [],  # computer hand positions acted on this turn
+        "player_touched":       [],  # player hand positions computer affected this turn
         "special_action":       None,   # {"type", "step", "picks"} during player_special
         "cambio_called_by":     None,
         "current_turn":         "player",
@@ -175,6 +177,8 @@ def apply_move(state, move):
     if action in _CLEAR_REVEAL_ON and state["current_turn"] == "player":
         s["player_reveal"] = []
         s["player_opponent_reveal"] = []
+        s["computer_acted"] = []
+        s["player_touched"] = []
 
     if action == "start":
         s["phase"] = PHASE_PLAYER_DRAW
@@ -228,6 +232,7 @@ def apply_move(state, move):
         if s["current_turn"] == "player":
             msg = f"You swapped position {idx+1} (discarded {old['rank']}{old['suit']})."
         else:
+            s["computer_acted"] = [idx]
             msg = f"Computer swapped position {idx+1} (discarded {old['rank']}{old['suit']})."
         s["message"] = msg
         s["log"].append(msg)
