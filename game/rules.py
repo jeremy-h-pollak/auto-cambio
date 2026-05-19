@@ -23,7 +23,7 @@ def card_value(card):
 
 
 def hand_value(hand):
-    return sum(card_value(c) for c in hand)
+    return sum(card_value(c) for c in hand if c is not None)
 
 
 def is_red(card):
@@ -38,7 +38,8 @@ def snap_eligible_indices(hand, discard_pile, known=None):
     top_rank = discard_pile[-1]["rank"]
     return [
         i for i, c in enumerate(hand)
-        if c["rank"] == top_rank
+        if c is not None
+        and c["rank"] == top_rank
         and (known is None or (i < len(known) and known[i]))
     ]
 
@@ -50,7 +51,8 @@ def opp_snap_eligible_indices(computer_hand, player_opponent_known, discard_pile
     top_rank = discard_pile[-1]["rank"]
     return [
         i for i, c in enumerate(computer_hand)
-        if c["rank"] == top_rank
+        if c is not None
+        and c["rank"] == top_rank
         and i < len(player_opponent_known)
         and player_opponent_known[i]
     ]
@@ -226,14 +228,21 @@ def apply_move(state, move):
         kk  = "player_known"  if s["current_turn"] == "player" else "computer_known"
         old = s[hk][idx]
         s[hk][idx] = s["drawn_card"]
-        s["discard_pile"].append(old)
+        if old is not None:
+            s["discard_pile"].append(old)
         s[kk][idx] = True
         s["drawn_card"] = None
         if s["current_turn"] == "player":
-            msg = f"You swapped position {idx+1} (discarded {old['rank']}{old['suit']})."
+            if old is not None:
+                msg = f"You swapped position {idx+1} (discarded {old['rank']}{old['suit']})."
+            else:
+                msg = f"You placed drawn card at position {idx+1}."
         else:
             s["computer_acted"] = [idx]
-            msg = f"Computer swapped position {idx+1} (discarded {old['rank']}{old['suit']})."
+            if old is not None:
+                msg = f"Computer swapped position {idx+1} (discarded {old['rank']}{old['suit']})."
+            else:
+                msg = f"Computer placed drawn card at position {idx+1}."
         s["message"] = msg
         s["log"].append(msg)
         return _advance_turn(s)
@@ -265,13 +274,15 @@ def apply_move(state, move):
             # Player snaps a card from computer's hand (must know it)
             comp_hand = s["computer_hand"]
             if (not s["discard_pile"]
+                    or comp_hand[idx] is None
                     or comp_hand[idx]["rank"] != s["discard_pile"][-1]["rank"]
                     or idx >= len(s["player_opponent_known"])
                     or not s["player_opponent_known"][idx]):
                 return s
-            card = comp_hand.pop(idx)
-            s["computer_known"].pop(idx)
-            s["player_opponent_known"].pop(idx)
+            card = comp_hand[idx]
+            comp_hand[idx] = None
+            s["computer_known"][idx] = False
+            s["player_opponent_known"][idx] = False
             s["discard_pile"].append(card)
             msg = (f"You snapped computer's position {idx+1} "
                    f"({card['rank']}{card['suit']})! Give one of your cards to the computer.")
@@ -283,24 +294,27 @@ def apply_move(state, move):
             s["log"][-1] = msg  # keep the snap message; message bar shows give_card prompt
             return s
 
-        # Normal snap: `by` discards their own matching card
+        # Normal snap: `by` sets their own card to None (position preserved)
         hk  = f"{by}_hand"
         kk  = f"{by}_known"
         hand = s[hk]
+        if hand[idx] is None:
+            return s
         if not s["discard_pile"] or hand[idx]["rank"] != s["discard_pile"][-1]["rank"]:
             return s
         if idx >= len(s[kk]) or not s[kk][idx]:
             return s  # must know the card to snap it
-        card = hand.pop(idx)
-        s[kk].pop(idx)
+        card = hand[idx]
+        hand[idx] = None
+        s[kk][idx] = False
         if by == "computer":
-            s["player_opponent_known"].pop(idx)
+            s["player_opponent_known"][idx] = False
         s["discard_pile"].append(card)
         msg = f"{'You snapped' if by == 'player' else 'Computer snapped'} {card['rank']}{card['suit']}!"
         s["message"] = msg
         s["log"].append(msg)
         # Empty hand → last turn for the other player
-        if not s[hk]:
+        if all(c is None for c in s[hk]):
             s["cambio_called_by"] = f"{by}_empty"
             whose = "Your" if by == "player" else "Computer's"
             end_msg = f"{whose} hand is empty! The other player gets one last turn."
@@ -321,6 +335,8 @@ def apply_move(state, move):
         owner = move["owner"]
         idx   = move["hand_index"]
         card  = s["player_hand"][idx] if owner == "player" else s["computer_hand"][idx]
+        if card is None:
+            return s  # can't act on an empty slot
         stype = sa["type"]
         step  = sa["step"]
 
@@ -377,8 +393,9 @@ def apply_move(state, move):
                 return s
 
         if stype == "give_card":
-            card = s["player_hand"].pop(idx)
-            s["player_known"].pop(idx)
+            card = s["player_hand"][idx]
+            s["player_hand"][idx] = None
+            s["player_known"][idx] = False
             s["computer_hand"].append(card)
             s["computer_known"].append(False)
             s["player_opponent_known"].append(True)
@@ -386,7 +403,7 @@ def apply_move(state, move):
             s["message"] = msg
             s["log"].append(msg)
             s["special_action"] = None
-            if not s["player_hand"]:
+            if all(c is None for c in s["player_hand"]):
                 s["cambio_called_by"] = "player_empty"
                 end_msg = "Your hand is empty! The computer gets one last turn."
                 s["message"] = end_msg
