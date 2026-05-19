@@ -90,12 +90,13 @@ def _make_deck():
     return deck
 
 
-def create_initial_state():
+def create_initial_state(starting_turn="player"):
     deck = _make_deck()
     player_hand   = deck[:4]
     computer_hand = deck[4:8]
     discard_pile  = [deck[8]]
     remaining     = deck[9:]
+    who_first = "You go first." if starting_turn == "player" else "Computer goes first."
     return {
         "phase":                PHASE_PEEK,
         "deck":                 remaining,
@@ -114,8 +115,8 @@ def create_initial_state():
         "player_touched":       [],  # player hand positions computer affected this turn
         "special_action":       None,   # {"type", "step", "picks"} during player_special
         "cambio_called_by":     None,
-        "current_turn":         "player",
-        "message":              "Peek at your last 2 cards, then press Start.",
+        "current_turn":         starting_turn,
+        "message":              f"Peek at your last 2 cards, then press Start. ({who_first})",
         "log":                  [],
     }
 
@@ -183,9 +184,13 @@ def apply_move(state, move):
         s["player_touched"] = []
 
     if action == "start":
-        s["phase"] = PHASE_PLAYER_DRAW
-        s["message"] = "Your turn: draw a card or call Cambio."
         s["player_known"] = [False] * len(s["player_hand"])
+        if s["current_turn"] == "computer":
+            s["phase"] = COMPUTER_TURN
+            s["message"] = "Computer goes first."
+        else:
+            s["phase"] = PHASE_PLAYER_DRAW
+            s["message"] = "Your turn: draw a card or call Cambio."
         return s
 
     if action == "call_cambio":
