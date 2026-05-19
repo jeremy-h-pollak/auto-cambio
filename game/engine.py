@@ -42,7 +42,7 @@ class GameEngine:
             for idx in eligible:
                 if should_snap(self.state, idx):
                     # Simultaneous snap: if player can also snap, 50/50 race
-                    if self.state["phase"] == PHASE_PLAYER_DRAW:
+                    if self.state["current_turn"] == "player":
                         player_own = snap_eligible_indices(
                             self.state["player_hand"], self.state["discard_pile"],
                             self.state["player_known"],
