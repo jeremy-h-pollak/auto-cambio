@@ -34,7 +34,7 @@ def _template_context(engine: GameEngine) -> dict:
         "is_red": is_red,
         "player_score": player_score,
         "computer_score": computer_score,
-        "snap_eligible": snap_eligible_indices(s["player_hand"], s["discard_pile"]),
+        "snap_eligible": snap_eligible_indices(s["player_hand"], s["discard_pile"], s["player_known"]),
         "opp_snap_eligible": opp_snap_eligible_indices(
             s["computer_hand"], s["player_opponent_known"], s["discard_pile"]
         ),

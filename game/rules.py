@@ -30,12 +30,17 @@ def is_red(card):
     return card["suit"] in RED_SUITS
 
 
-def snap_eligible_indices(hand, discard_pile):
-    """Indices of hand cards whose rank matches the top of the discard pile."""
+def snap_eligible_indices(hand, discard_pile, known=None):
+    """Indices of hand cards whose rank matches the top of the discard pile.
+    If known is provided, only includes positions the owner actually knows."""
     if not discard_pile or not hand:
         return []
     top_rank = discard_pile[-1]["rank"]
-    return [i for i, c in enumerate(hand) if c["rank"] == top_rank]
+    return [
+        i for i, c in enumerate(hand)
+        if c["rank"] == top_rank
+        and (known is None or (i < len(known) and known[i]))
+    ]
 
 
 def opp_snap_eligible_indices(computer_hand, player_opponent_known, discard_pile):
@@ -279,6 +284,8 @@ def apply_move(state, move):
         hand = s[hk]
         if not s["discard_pile"] or hand[idx]["rank"] != s["discard_pile"][-1]["rank"]:
             return s
+        if idx >= len(s[kk]) or not s[kk][idx]:
+            return s  # must know the card to snap it
         card = hand.pop(idx)
         s[kk].pop(idx)
         if by == "computer":
