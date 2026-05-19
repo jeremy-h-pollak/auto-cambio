@@ -52,8 +52,13 @@ class GameEngine:
                             self.state["player_opponent_known"],
                             self.state["discard_pile"],
                         )
-                        if (player_own or player_opp) and random.random() < 0.5:
-                            return  # player wins the race
+                        if player_own or player_opp:
+                            if random.random() < 0.5:
+                                self.state["message"] = "Simultaneous snap! Coin flip: YOU win — snap the highlighted card."
+                                self.state["log"].append("Simultaneous snap — coin flip: you win!")
+                                return  # player wins the race
+                            else:
+                                self.state["log"].append("Simultaneous snap — coin flip: computer wins!")
                     self.state = apply_move(
                         self.state, {"action": "snap", "by": "computer", "hand_index": idx}
                     )
