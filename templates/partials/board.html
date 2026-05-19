@@ -9,6 +9,7 @@
 {# Which cards are clickable during special phases #}
 {% set pick_own_card  = is_special and sa and (
     sa.type == "peek_own" or
+    sa.type == "give_card" or
     (sa.type == "blind_switch"    and sa.step == 1) or
     (sa.type == "looking_switch"  and sa.step == 1)
 ) %}
@@ -40,6 +41,7 @@
         {% set card = state.computer_hand[i] %}
         {% set player_sees = i in state.player_opponent_reveal %}
         {% set face_up = is_game_over or player_sees %}
+        {% set can_opp_snap = is_player_draw and (i in opp_snap_eligible) %}
         <div class="card-slot">
           {% if pick_opp_card %}
             <form hx-post="/move" hx-target="#board" hx-swap="outerHTML" style="display:contents">
@@ -55,6 +57,18 @@
               {% else %}
                 <button type="submit" class="card face-down clickable special-target"></button>
               {% endif %}
+            </form>
+          {% elif can_opp_snap %}
+            {# Player snaps opponent card they know matches discard #}
+            <form hx-post="/move" hx-target="#board" hx-swap="outerHTML" style="display:contents">
+              <input type="hidden" name="action"     value="snap">
+              <input type="hidden" name="target"     value="computer">
+              <input type="hidden" name="hand_index" value="{{ i }}">
+              <button type="submit" class="card {{ 'red' if is_red(card) else 'black' }} clickable snap-target">
+                <span class="corner top">{{ card.rank }}<br>{{ card.suit }}</span>
+                <span class="center">{{ card.suit }}</span>
+                <span class="corner bottom">{{ card.rank }}<br>{{ card.suit }}</span>
+              </button>
             </form>
           {% elif face_up %}
             <div class="card {{ 'red' if is_red(card) else 'black' }} {% if player_sees and not is_game_over %}peeked{% endif %}">
@@ -164,7 +178,7 @@
     <div class="hand-grid">
       {% for i in range(state.player_hand | length) %}
         {% set card  = state.player_hand[i] %}
-        {% set known = (i in state.player_reveal) or (is_peek and (i == 2 or i == 3)) %}
+        {% set known = is_game_over or (i in state.player_reveal) or (is_peek and (i == 2 or i == 3)) %}
         {% set can_snap = (is_player_draw) and (i in snap_eligible) %}
 
         <div class="card-slot">
@@ -252,6 +266,9 @@
     {% if snap_eligible and is_player_draw %}
       <p class="hint snap-hint">Snap! You have a card matching the discard — click it to snap.</p>
     {% endif %}
+    {% if opp_snap_eligible and is_player_draw %}
+      <p class="hint snap-hint">Snap! You know a computer card matching the discard — click it in the computer's hand!</p>
+    {% endif %}
 
     {% if is_player_action %}
       <form hx-post="/move" hx-target="#board" hx-swap="outerHTML">
@@ -261,7 +278,7 @@
       <p class="hint">…or click a hand card above to swap</p>
     {% endif %}
 
-    {% if is_special and not is_deciding %}
+    {% if is_special and not is_deciding and not (sa and sa.type == "give_card") %}
       <form hx-post="/move" hx-target="#board" hx-swap="outerHTML">
         <input type="hidden" name="action" value="skip_special">
         <button type="submit" class="btn btn-secondary">Skip Power</button>

@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, session, redirect, url_for
 from game.engine import GameEngine
 from game.rules import (
     card_value, hand_value, is_red, get_scores,
-    snap_eligible_indices, PHASE_GAME_OVER,
+    snap_eligible_indices, opp_snap_eligible_indices, PHASE_GAME_OVER,
 )
 
 app = Flask(__name__)
@@ -35,6 +35,9 @@ def _template_context(engine: GameEngine) -> dict:
         "player_score": player_score,
         "computer_score": computer_score,
         "snap_eligible": snap_eligible_indices(s["player_hand"], s["discard_pile"]),
+        "opp_snap_eligible": opp_snap_eligible_indices(
+            s["computer_hand"], s["player_opponent_known"], s["discard_pile"]
+        ),
     }
 
 
@@ -60,10 +63,13 @@ def move():
     owner      = request.form.get("owner")
     do_switch  = request.form.get("do_switch")
 
+    target    = request.form.get("target")
+
     kwargs = {}
     if hand_index is not None: kwargs["hand_index"] = int(hand_index)
     if owner is not None:      kwargs["owner"] = owner
     if do_switch is not None:  kwargs["do_switch"] = (do_switch == "true")
+    if target is not None:     kwargs["target"] = target
 
     engine.player_move(action, **kwargs)
     ctx = _template_context(engine)

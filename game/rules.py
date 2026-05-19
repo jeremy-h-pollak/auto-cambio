@@ -38,6 +38,19 @@ def snap_eligible_indices(hand, discard_pile):
     return [i for i, c in enumerate(hand) if c["rank"] == top_rank]
 
 
+def opp_snap_eligible_indices(computer_hand, player_opponent_known, discard_pile):
+    """Indices of computer hand cards the player knows and that match the discard top."""
+    if not discard_pile or not computer_hand:
+        return []
+    top_rank = discard_pile[-1]["rank"]
+    return [
+        i for i, c in enumerate(computer_hand)
+        if c["rank"] == top_rank
+        and i < len(player_opponent_known)
+        and player_opponent_known[i]
+    ]
+
+
 def special_type(card):
     r = card["rank"]
     if r in ("7", "8"):   return "peek_own"
@@ -59,6 +72,8 @@ def special_message(stype, step):
         if step == 1: return "Special (K): Click one of YOUR cards to peek at."
         if step == 2: return "Special (K): Now click one of the COMPUTER's cards to peek at."
         if step == 3: return "Special (K): Switch these two cards?"
+    if stype == "give_card":
+        return "Snap! Click one of YOUR cards to give to the computer."
     return ""
 
 
@@ -232,8 +247,33 @@ def apply_move(state, move):
 
     # ── Snap: discard a matching hand card (no turn used) ────────────────────
     if action == "snap":
-        by  = move.get("by", "player")
-        idx = move["hand_index"]
+        by     = move.get("by", "player")
+        target = move.get("target", by)  # who owns the card being snapped
+        idx    = move["hand_index"]
+
+        if by == "player" and target == "computer":
+            # Player snaps a card from computer's hand (must know it)
+            comp_hand = s["computer_hand"]
+            if (not s["discard_pile"]
+                    or comp_hand[idx]["rank"] != s["discard_pile"][-1]["rank"]
+                    or idx >= len(s["player_opponent_known"])
+                    or not s["player_opponent_known"][idx]):
+                return s
+            card = comp_hand.pop(idx)
+            s["computer_known"].pop(idx)
+            s["player_opponent_known"].pop(idx)
+            s["discard_pile"].append(card)
+            msg = (f"You snapped computer's position {idx+1} "
+                   f"({card['rank']}{card['suit']})! Give one of your cards to the computer.")
+            s["message"] = msg
+            s["log"].append(msg)
+            s["special_action"] = {"type": "give_card", "step": 1, "picks": []}
+            s["phase"] = PHASE_PLAYER_SPECIAL
+            s["message"] = special_message("give_card", 1)
+            s["log"][-1] = msg  # keep the snap message; message bar shows give_card prompt
+            return s
+
+        # Normal snap: `by` discards their own matching card
         hk  = f"{by}_hand"
         kk  = f"{by}_known"
         hand = s[hk]
@@ -319,6 +359,27 @@ def apply_move(state, move):
                 sa["step"] = 3
                 s["message"] = special_message("looking_switch", 3)
                 return s
+
+        if stype == "give_card":
+            card = s["player_hand"].pop(idx)
+            s["player_known"].pop(idx)
+            s["computer_hand"].append(card)
+            s["computer_known"].append(False)
+            s["player_opponent_known"].append(True)
+            msg = f"You gave position {idx+1} ({card['rank']}{card['suit']}) to the computer."
+            s["message"] = msg
+            s["log"].append(msg)
+            s["special_action"] = None
+            if not s["player_hand"]:
+                s["cambio_called_by"] = "player_empty"
+                end_msg = "Your hand is empty! The computer gets one last turn."
+                s["message"] = end_msg
+                s["log"].append(end_msg)
+                s["current_turn"] = "computer"
+                s["phase"] = COMPUTER_TURN
+            else:
+                s["phase"] = PHASE_PLAYER_DRAW
+            return s
 
         return s
 
