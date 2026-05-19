@@ -314,6 +314,7 @@ def apply_move(state, move):
 
         if stype == "peek_own":
             s["player_known"][idx] = True
+            s["player_reveal"].append(idx)
             msg = f"You peeked at your position {idx+1}: {card['rank']}{card['suit']}."
             s["message"] = msg; s["log"].append(msg)
             s["special_action"] = None
@@ -321,6 +322,7 @@ def apply_move(state, move):
 
         if stype == "peek_opponent":
             s["player_opponent_known"][idx] = True
+            s["player_opponent_reveal"].append(idx)
             msg = f"You peeked at computer's position {idx+1}: {card['rank']}{card['suit']}."
             s["message"] = msg; s["log"].append(msg)
             s["special_action"] = None
@@ -349,12 +351,14 @@ def apply_move(state, move):
         if stype == "looking_switch":
             if step == 1:
                 s["player_known"][idx] = True
+                s["player_reveal"].append(idx)
                 sa["picks"].append({"owner": "player", "index": idx})
                 sa["step"] = 2
                 s["message"] = special_message("looking_switch", 2)
                 return s
             if step == 2:
                 s["player_opponent_known"][idx] = True
+                s["player_opponent_reveal"].append(idx)
                 sa["picks"].append({"owner": "computer", "index": idx})
                 sa["step"] = 3
                 s["message"] = special_message("looking_switch", 3)

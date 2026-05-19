@@ -68,7 +68,8 @@ def apply_computer_special(state, stype):
         if player_hand:
             idx = random.randint(0, len(player_hand) - 1)
             c = player_hand[idx]
-            msg = f"Computer used 9/10: peeked at your position {idx+1}!"
+            state["player_reveal"].append(idx)
+            msg = f"Computer used 9/10: peeked at your position {idx+1} ({c['rank']}{c['suit']})!"
             state["message"] = msg
             state["log"].append(msg)
 
@@ -93,6 +94,7 @@ def apply_computer_special(state, stype):
             opp_idx = random.randint(0, len(player_hand) - 1)
             my_card  = computer_hand[my_idx]
             opp_card = player_hand[opp_idx]
+            state["player_reveal"].append(opp_idx)
             # Switch if opponent's card is better (lower value) for computer
             if card_value(opp_card) < card_value(my_card):
                 computer_hand[my_idx]  = opp_card
