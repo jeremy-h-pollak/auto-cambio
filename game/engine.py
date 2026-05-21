@@ -14,10 +14,17 @@ from .strategy import choose_move, should_snap, apply_computer_special
 
 class GameEngine:
     def __init__(self):
-        self.state = create_initial_state()
+        self._next_starter = random.choice(["player", "computer"])
+        self.state = create_initial_state(starting_turn=self._next_starter)
+        self._next_starter = self._other(self._next_starter)
 
     def reset(self):
-        self.state = create_initial_state()
+        self.state = create_initial_state(starting_turn=self._next_starter)
+        self._next_starter = self._other(self._next_starter)
+
+    @staticmethod
+    def _other(who):
+        return "computer" if who == "player" else "player"
 
     def player_move(self, action, hand_index=None, owner=None, do_switch=None):
         move = {"action": action}
