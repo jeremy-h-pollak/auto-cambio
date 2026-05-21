@@ -24,10 +24,23 @@
 
   <header>
     <h1>Cambio</h1>
-    <form hx-post="/new" hx-target="#board" hx-swap="outerHTML">
+    <form class="opponent-form" hx-post="/new" hx-target="#board" hx-swap="outerHTML">
+      <label class="opponent-pick">Opponent:
+        <select name="opponent">
+          <option value="random" {% if opponent == 'random' %}selected{% endif %}>Random AI</option>
+          <option value="smart"  {% if opponent == 'smart'  %}selected{% endif %}>Smart AI</option>
+        </select>
+      </label>
       <button type="submit" class="btn btn-secondary">New Game</button>
     </form>
   </header>
+
+  <details class="ai-info" {% if opponent == 'smart' %}open{% endif %}>
+    <summary>How the Smart AI plays{% if opponent != 'smart' %} <em>(currently playing the Random AI)</em>{% endif %}</summary>
+    <ul>
+      {% for line in smart_description %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+  </details>
 
   {# ── Computer hand (2×2) ───────────────────────────────────────────────── #}
   <section class="area computer-area">

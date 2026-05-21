@@ -31,14 +31,14 @@ def choose_move(state, known_indices):
         return {"action": "discard_drawn"}
     if random.random() < 0.4:
         return {"action": "discard_drawn"}
-    valid = [i for i, c in enumerate(state["computer_hand"]) if c is not None]
+    valid = [i for i, c in enumerate(state[f"{state['current_turn']}_hand"]) if c is not None]
     if not valid:
         return {"action": "discard_drawn"}
     return {"action": "swap", "hand_index": random.choice(valid)}
 
 
-def should_snap(state, hand_index):
-    """Return True if computer should snap the card at hand_index."""
+def should_snap(state, hand_index, seat="computer"):
+    """Return True if `seat` should snap the card at hand_index."""
     return random.random() < 0.7
 
 
@@ -122,5 +122,58 @@ def apply_computer_special(state, stype):
                 msg = "Computer used K: looked at cards but chose not to switch."
             state["message"] = msg
             state["log"].append(msg)
+
+    return state
+
+
+def apply_special(state, seat, stype):
+    """Seat-general random power resolution for the self-play simulator.
+
+    Mutates `state` in place for an arbitrary acting `seat` ("player"|"computer").
+    Lean by design — only touches hands / known arrays / log (no web-app UI
+    fields). The engine still uses `apply_computer_special` for the live app.
+    """
+    opp = "player" if seat == "computer" else "computer"
+    me_hand,  me_known  = state[f"{seat}_hand"], state[f"{seat}_known"]
+    opp_hand, opp_known = state[f"{opp}_hand"],  state[f"{opp}_known"]
+
+    if stype == "peek_own":
+        unknown = [i for i, k in enumerate(me_known) if not k and me_hand[i] is not None]
+        if unknown:
+            idx = random.choice(unknown)
+            me_known[idx] = True
+            state["log"].append(f"{seat} used 7/8: peeked at its own position {idx+1}.")
+
+    elif stype == "peek_opponent":
+        valid = [i for i, c in enumerate(opp_hand) if c is not None]
+        if valid:
+            idx = random.choice(valid)
+            state["log"].append(f"{seat} used 9/10: peeked at opponent position {idx+1}.")
+
+    elif stype == "blind_switch":
+        me_valid  = [i for i, c in enumerate(me_hand)  if c is not None]
+        opp_valid = [i for i, c in enumerate(opp_hand) if c is not None]
+        if me_valid and opp_valid:
+            mi, oi = random.choice(me_valid), random.choice(opp_valid)
+            me_hand[mi], opp_hand[oi] = opp_hand[oi], me_hand[mi]
+            me_known[mi] = False
+            opp_known[oi] = False
+            state["log"].append(
+                f"{seat} used J/Q: blind-switched its position {mi+1} with opponent's {oi+1}.")
+
+    elif stype == "looking_switch":
+        me_valid  = [i for i, c in enumerate(me_hand)  if c is not None]
+        opp_valid = [i for i, c in enumerate(opp_hand) if c is not None]
+        if me_valid and opp_valid:
+            mi, oi = random.choice(me_valid), random.choice(opp_valid)
+            if card_value(opp_hand[oi]) < card_value(me_hand[mi]):
+                me_hand[mi], opp_hand[oi] = opp_hand[oi], me_hand[mi]
+                me_known[mi] = True
+                opp_known[oi] = False
+                state["log"].append(
+                    f"{seat} used K: looked and switched its position {mi+1} with opponent's {oi+1}.")
+            else:
+                me_known[mi] = True
+                state["log"].append(f"{seat} used K: looked but chose not to switch.")
 
     return state

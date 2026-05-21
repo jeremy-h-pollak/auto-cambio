@@ -334,3 +334,54 @@ header h1 {
   content: "› ";
   color: #5a8a6a;
 }
+
+/* ── Opponent picker ── */
+.opponent-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.opponent-pick {
+  font-size: 0.85rem;
+  color: #c8b898;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.opponent-pick select {
+  font-family: Georgia, serif;
+  font-size: 0.9rem;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.12);
+  color: #f0ede0;
+}
+
+.ai-info {
+  background: rgba(0,0,0,0.2);
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  color: #cde0cd;
+}
+
+.ai-info summary {
+  cursor: pointer;
+  color: #f5e6c8;
+  letter-spacing: 0.5px;
+}
+
+.ai-info summary em {
+  color: #a0b8a0;
+  font-size: 0.8rem;
+}
+
+.ai-info ul {
+  margin: 10px 0 2px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
