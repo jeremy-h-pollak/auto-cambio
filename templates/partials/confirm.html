@@ -1,0 +1,24 @@
+<div id="board">
+  <header>
+    <h1>Cambio</h1>
+  </header>
+
+  <section class="confirm">
+    <h2>Description of {{ name }}:</h2>
+    <ul class="confirm-rules">
+      {% for line in rules %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+
+    <p class="confirm-q">Are you sure you want to play this AI strategy?</p>
+
+    <div class="confirm-actions">
+      <form hx-post="/new" hx-target="#board" hx-swap="outerHTML">
+        <input type="hidden" name="opponent" value="{{ key }}">
+        <button type="submit" class="btn btn-primary">Yes — play {{ name }}</button>
+      </form>
+      <form hx-post="/choose" hx-target="#board" hx-swap="outerHTML">
+        <button type="submit" class="btn btn-secondary">Back to choices</button>
+      </form>
+    </div>
+  </section>
+</div>

@@ -26,7 +26,9 @@ class StrategyProfile:
     rules: list                       # human-readable bullet lines for the report
     snap_mode: str = "always"         # "always" | "high_only"
     snap_min_value: int = 7           # used when snap_mode == "high_only"
+    snap_skip_negative: bool = False  # never snap a negative card (keep red Kings, -1)
     draw_discard: bool = True         # draw from discard when it beats largest known
+    draw_discard_max: int | None = None   # also draw from discard when its top value <= this
     gamble_max: int = 6               # max drawn value to gamble onto an unknown slot
     cambio_all_known_sum: int = 8     # call Cambio when all known and sum <= this
     cambio_known_sum: int | None = None   # call with <=1 unknown when known-sum <= this
@@ -76,8 +78,12 @@ class SmartStrategy:
                 return {"action": "call_cambio"}
             largest = _largest_known(hand, known)
             discard = state["discard_pile"]
-            if p.draw_discard and discard and largest and card_value(discard[-1]) < largest[1]:
-                return {"action": "draw_discard"}
+            if discard:
+                top_val = card_value(discard[-1])
+                take = (p.draw_discard and largest and top_val < largest[1]) or \
+                       (p.draw_discard_max is not None and top_val <= p.draw_discard_max)
+                if take:
+                    return {"action": "draw_discard"}
             return {"action": "draw_deck"}
 
         drawn_val = card_value(drawn)
@@ -95,12 +101,16 @@ class SmartStrategy:
         return {"action": "discard_drawn"}
 
     def should_snap(self, state, hand_index, seat="computer"):
-        if self.profile.snap_mode == "always":
-            return True
+        p = self.profile
         card = state[f"{seat}_hand"][hand_index]
         if card is None:
             return False
-        return card_value(card) >= self.profile.snap_min_value
+        v = card_value(card)
+        if p.snap_skip_negative and v < 0:
+            return False
+        if p.snap_mode == "high_only" and v < p.snap_min_value:
+            return False
+        return True
 
     # ── Powers (seat-general; sets UI fields for the live app on seat=computer)
     def apply_special(self, state, seat, stype):
@@ -249,8 +259,135 @@ PROFILES = {
         discard_specials_for_info=True,
         gamble_max=4,
     ),
+
+    # ── Second wave: 10 more strategies (most keep negative cards) ──────────
+    "keeper": StrategyProfile(
+        key="keeper",
+        name="Negative Keeper",
+        rules=[
+            "Plays the Greedy Minimizer, but never snaps a negative card — it keeps "
+            "red Kings (worth −1) in hand instead of throwing them away.",
+            "Draws from the discard pile when its top beats its highest known card.",
+            "Replaces its highest known card when the draw is lower; gambles a draw ≤6 onto "
+            "an unknown slot; otherwise discards and uses the power.",
+            "Calls Cambio once all four cards are known and their total is 8 or less.",
+        ],
+        snap_skip_negative=True,
+    ),
+    "scrooge": StrategyProfile(
+        key="scrooge",
+        name="Bargain Hunter",
+        rules=[
+            "Snatches any discard-pile card worth 4 or less (a guaranteed-cheap card), "
+            "and also takes the discard when it beats its highest known card.",
+            "Keeps negative cards (never snaps a red King).",
+            "Replaces its highest known card when the draw is lower; gambles a draw ≤6 onto "
+            "an unknown slot; otherwise discards and uses the power.",
+            "Calls Cambio once all four cards are known and their total is 8 or less.",
+        ],
+        snap_skip_negative=True,
+        draw_discard_max=4,
+    ),
+    "sniper": StrategyProfile(
+        key="sniper",
+        name="Cambio Sniper",
+        rules=[
+            "Holds out for a great hand: only calls Cambio when all four cards are known "
+            "and total 6 or less.",
+            "Keeps negative cards; draws from the discard pile when it beats its highest known card.",
+            "Replaces its highest known card when the draw is lower; gambles a draw ≤5 onto an unknown slot.",
+        ],
+        snap_skip_negative=True,
+        gamble_max=5,
+        cambio_all_known_sum=6,
+    ),
+    "closer": StrategyProfile(
+        key="closer",
+        name="Quick Closer",
+        rules=[
+            "Ends games fast: calls Cambio as soon as all four cards are known and total 10 or less.",
+            "Grabs any discard-pile card worth 3 or less, and keeps negative cards.",
+            "Replaces its highest known card when the draw is lower; gambles a draw ≤6 onto an unknown slot.",
+        ],
+        snap_skip_negative=True,
+        draw_discard_max=3,
+        cambio_all_known_sum=10,
+    ),
+    "highroller": StrategyProfile(
+        key="highroller",
+        name="High Roller",
+        rules=[
+            "Gambles aggressively: swaps a drawn card of 9 or lower onto an unknown slot.",
+            "Keeps negative cards; draws from the discard pile when it beats its highest known card.",
+            "Calls Cambio once all four cards are known and their total is 8 or less.",
+        ],
+        snap_skip_negative=True,
+        gamble_max=9,
+    ),
+    "cautious": StrategyProfile(
+        key="cautious",
+        name="Cautious Optimizer",
+        rules=[
+            "Never gambles onto unknown cards — only replaces a known card when the draw is strictly lower.",
+            "Keeps negative cards; draws from the discard pile when it beats its highest known card.",
+            "Calls Cambio once all four cards are known and their total is 7 or less.",
+        ],
+        snap_skip_negative=True,
+        gamble_max=0,
+        cambio_all_known_sum=7,
+    ),
+    "opportunist": StrategyProfile(
+        key="opportunist",
+        name="Opportunist",
+        rules=[
+            "Grabs any discard-pile card worth 5 or less and fires peek cards (7–10) to learn the table.",
+            "Keeps negative cards; gambles a non-special draw ≤6 onto an unknown slot.",
+            "Calls Cambio once all four cards are known and their total is 9 or less.",
+        ],
+        snap_skip_negative=True,
+        draw_discard_max=5,
+        discard_specials_for_info=True,
+        cambio_all_known_sum=9,
+    ),
+    "counter": StrategyProfile(
+        key="counter",
+        name="Card Counter",
+        rules=[
+            "Always discards drawn peek cards (7–10) to fire their power and map out its hand.",
+            "Keeps negative cards; draws from the discard pile when it beats its highest known card.",
+            "Replaces its highest known card when the draw is lower; gambles a draw ≤6 onto an unknown slot.",
+            "Calls Cambio once all four cards are known and their total is 8 or less.",
+        ],
+        snap_skip_negative=True,
+        discard_specials_for_info=True,
+    ),
+    "allrounder": StrategyProfile(
+        key="allrounder",
+        name="All-Rounder",
+        rules=[
+            "Grabs cheap discards (3 or less), keeps negative cards, and gambles a draw ≤6 onto an unknown slot.",
+            "Calls Cambio when all four cards are known and total ≤ 9, or with at most one "
+            "unknown card when its known cards total ≤ 5.",
+        ],
+        snap_skip_negative=True,
+        draw_discard_max=3,
+        cambio_all_known_sum=9,
+        cambio_known_sum=5,
+    ),
+    "minimalist": StrategyProfile(
+        key="minimalist",
+        name="Minimalist",
+        rules=[
+            "Snaps every matching card (even negatives) to shrink its hand as fast as possible.",
+            "Grabs any discard-pile card worth 4 or less; gambles a draw ≤6 onto an unknown slot.",
+            "Calls Cambio once all four cards are known and their total is 7 or less.",
+        ],
+        draw_discard_max=4,
+        cambio_all_known_sum=7,
+    ),
 }
 
 
 def get(key):
     return SmartStrategy(PROFILES[key])
+

@@ -1,0 +1,22 @@
+<div id="board">
+  <header>
+    <h1>Cambio</h1>
+  </header>
+
+  <section class="lobby">
+    <h2>Choose your opponent</h2>
+    <p class="lobby-hint">Pick an AI strategy to play against. You'll see exactly what it does before the game starts.</p>
+
+    <div class="opponent-list">
+      {% for key, name, rules in catalog %}
+        <form hx-post="/describe" hx-target="#board" hx-swap="outerHTML">
+          <input type="hidden" name="opponent" value="{{ key }}">
+          <button type="submit" class="opponent-card {% if key == 'random' %}is-random{% endif %}{% if key == 'hardest' %}is-hardest{% endif %}">
+            <span class="opp-name">{% if key == 'hardest' %}🔥 {% endif %}{{ name }}</span>
+            <span class="opp-tag">{{ rules[0] }}</span>
+          </button>
+        </form>
+      {% endfor %}
+    </div>
+  </section>
+</div>

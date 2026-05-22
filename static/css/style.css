@@ -335,29 +335,116 @@ header h1 {
   color: #5a8a6a;
 }
 
-/* ── Opponent picker ── */
-.opponent-form {
+/* ── Header / opponent label ── */
+.header-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
-.opponent-pick {
-  font-size: 0.85rem;
-  color: #c8b898;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.opponent-pick select {
-  font-family: Georgia, serif;
+.vs-label {
   font-size: 0.9rem;
-  padding: 6px 8px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.3);
-  background: rgba(255,255,255,0.12);
+  color: #c8b898;
+  font-style: italic;
+}
+
+/* ── Lobby / opponent chooser ── */
+.lobby h2,
+.confirm h2 {
+  font-size: 1.3rem;
+  color: #f5e6c8;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.lobby-hint {
+  font-size: 0.9rem;
+  color: #a0b8a0;
+  margin-bottom: 16px;
+}
+
+.opponent-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.opponent-list form {
+  display: contents;
+}
+
+.opponent-card {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.22);
   color: #f0ede0;
+  font-family: Georgia, serif;
+  transition: filter 0.15s, transform 0.1s, border-color 0.15s;
+}
+
+.opponent-card:hover {
+  filter: brightness(1.12);
+  transform: translateY(-2px);
+  border-color: #4caf82;
+}
+
+.opponent-card.is-random {
+  border-style: dashed;
+}
+
+.opponent-card.is-hardest {
+  border-color: #c0392b;
+  background: linear-gradient(160deg, rgba(192,57,43,0.30), rgba(0,0,0,0.25));
+  grid-column: 1 / -1;
+}
+
+.opponent-card.is-hardest:hover {
+  border-color: #e0503b;
+}
+
+.opponent-card.is-hardest .opp-name {
+  color: #ffd9c8;
+}
+
+.opponent-card .opp-name {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #f5e6c8;
+}
+
+.opponent-card .opp-tag {
+  font-size: 0.82rem;
+  color: #b8c8b8;
+  line-height: 1.35;
+}
+
+/* ── Confirmation screen ── */
+.confirm-rules {
+  margin: 8px 0 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.95rem;
+  color: #cde0cd;
+}
+
+.confirm-q {
+  font-size: 1.05rem;
+  color: #f0ede0;
+  margin-bottom: 16px;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .ai-info {

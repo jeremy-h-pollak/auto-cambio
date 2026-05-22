@@ -1,9 +1,9 @@
 import uuid
-from flask import Flask, render_template, request, session, redirect, url_for
+from flask import Flask, render_template, request, session
 
 from game.engine import GameEngine
 import game.strategy as random_strategy
-import game.strategy_smart as smart_strategy
+from game import strategies
 from game.rules import (
     card_value, hand_value, is_red, get_scores,
     snap_eligible_indices, opp_snap_eligible_indices, PHASE_GAME_OVER,
@@ -14,22 +14,48 @@ app.secret_key = "cambio-dev-secret"
 
 GAMES: dict[str, GameEngine] = {}
 
-STRATEGY_MODULES = {"random": random_strategy, "smart": smart_strategy}
-
-# Bullet summary of the smart AI, shown in the UI (keep in sync with strategy_smart.py).
-SMART_AI_DESCRIPTION = [
-    "Snaps instantly whenever a card it knows matches the discard pile.",
-    "Draws from the discard pile when its top card is lower than the AI's "
-    "highest known card; otherwise draws a fresh card from the deck.",
-    "If the draw beats its highest known card, it replaces that card. If the "
-    "draw is its new highest but 6 or lower, it gambles it onto an unknown "
-    "card. Otherwise it discards the draw and uses the card's power.",
-    "Calls Cambio once it knows all four of its cards and their total is 8 or less.",
+RANDOM_DESCRIPTION = [
+    "Draws, swaps, snaps, and calls Cambio at random.",
+    "No memory and no planning — the baseline every strategy aims to beat.",
 ]
 
+# Strongest of 15 tested strategies by win rate vs Random (multi-seed eval,
+# 40k games each). Surfaced in the chooser as the "Hardest Mode" boss.
+HARDEST_KEY = "minimalist"
+HARDEST_WINRATE = "~75%"
 
-def _strategy_module():
-    return STRATEGY_MODULES.get(session.get("opponent", "random"), random_strategy)
+# Chooser display order: Hardest Mode, the five original named strategies, Random.
+NAMED_OPPONENTS = ["greedy", "aggressive", "conservative", "snapper", "power"]
+OPPONENT_KEYS = ["hardest"] + NAMED_OPPONENTS + ["random"]
+
+
+def _opponent_info(key):
+    """(name, rules) for an opponent key."""
+    if key == "hardest":
+        p = strategies.PROFILES[HARDEST_KEY]
+        return f"Hardest Mode — {p.name}", [
+            f"The strongest AI found across 15 tested strategies "
+            f"({HARDEST_WINRATE} win rate vs random).",
+            *p.rules,
+        ]
+    if key in strategies.PROFILES:
+        p = strategies.PROFILES[key]
+        return p.name, p.rules
+    return "Random AI", RANDOM_DESCRIPTION
+
+
+def opponent_catalog():
+    """List of (key, name, rules) in chooser display order."""
+    return [(key, *_opponent_info(key)) for key in OPPONENT_KEYS]
+
+
+def _strategy_object(key):
+    """Resolve an opponent key to a strategy object the engine can drive."""
+    if key == "hardest":
+        return strategies.get(HARDEST_KEY)
+    if key in strategies.PROFILES:
+        return strategies.get(key)
+    return random_strategy
 
 
 def _get_engine() -> GameEngine:
@@ -37,7 +63,7 @@ def _get_engine() -> GameEngine:
     if not sid or sid not in GAMES:
         sid = str(uuid.uuid4())
         session["sid"] = sid
-        GAMES[sid] = GameEngine(strategy=_strategy_module())
+        GAMES[sid] = GameEngine(strategy=_strategy_object(session.get("opponent", "random")))
     return GAMES[sid]
 
 
@@ -46,6 +72,8 @@ def _template_context(engine: GameEngine) -> dict:
     player_score, computer_score = (
         get_scores(s) if s["phase"] == PHASE_GAME_OVER else (None, None)
     )
+    opponent = session.get("opponent", "random")
+    name, rules = _opponent_info(opponent)
     return {
         "state": s,
         "card_value": card_value,
@@ -57,23 +85,38 @@ def _template_context(engine: GameEngine) -> dict:
         "opp_snap_eligible": opp_snap_eligible_indices(
             s["computer_hand"], s["player_opponent_known"], s["discard_pile"]
         ),
-        "opponent": session.get("opponent", "random"),
-        "smart_description": SMART_AI_DESCRIPTION,
+        "opponent": opponent,
+        "opponent_name": name,
+        "opponent_rules": rules,
     }
 
 
 @app.route("/")
 def index():
-    engine = _get_engine()
-    engine.reset()
-    return redirect(url_for("play"))
+    # Land on the opponent chooser — pick an AI before any game starts.
+    return render_template("game.html", partial="partials/chooser.html",
+                           catalog=opponent_catalog())
+
+
+@app.route("/choose", methods=["POST"])
+def choose():
+    return render_template("partials/chooser.html", catalog=opponent_catalog())
+
+
+@app.route("/describe", methods=["POST"])
+def describe():
+    key = request.form.get("opponent", "random")
+    if key not in OPPONENT_KEYS:
+        key = "random"
+    name, rules = _opponent_info(key)
+    return render_template("partials/confirm.html", key=key, name=name, rules=rules)
 
 
 @app.route("/play")
 def play():
     engine = _get_engine()
     ctx = _template_context(engine)
-    return render_template("game.html", **ctx)
+    return render_template("game.html", partial="partials/board.html", **ctx)
 
 
 @app.route("/move", methods=["POST"])
@@ -83,8 +126,7 @@ def move():
     hand_index = request.form.get("hand_index")
     owner      = request.form.get("owner")
     do_switch  = request.form.get("do_switch")
-
-    target    = request.form.get("target")
+    target     = request.form.get("target")
 
     kwargs = {}
     if hand_index is not None: kwargs["hand_index"] = int(hand_index)
@@ -100,12 +142,12 @@ def move():
 @app.route("/new", methods=["POST"])
 def new_game():
     opponent = request.form.get("opponent")
-    if opponent in STRATEGY_MODULES:
+    if opponent in OPPONENT_KEYS:
         session["opponent"] = opponent
     sid = session.get("sid") or str(uuid.uuid4())
     session["sid"] = sid
-    # Fresh engine so a newly chosen opponent strategy takes effect immediately.
-    GAMES[sid] = GameEngine(strategy=_strategy_module())
+    # Fresh engine so the chosen opponent strategy takes effect immediately.
+    GAMES[sid] = GameEngine(strategy=_strategy_object(session.get("opponent", "random")))
     ctx = _template_context(GAMES[sid])
     return render_template("partials/board.html", **ctx)
 
