@@ -10,5 +10,6 @@ htmlcov/
 pytest.xml
 pytest-coverage.txt
 
-# Default simulator report output
+# Default simulator / tournament report output
 /report.html
+/tournament.html

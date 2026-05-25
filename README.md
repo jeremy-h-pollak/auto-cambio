@@ -4,9 +4,10 @@ A simulator and optimizer for a custom variant of the card game Cambio, written 
 
 ## Overview
 
-There are two ways to interact with this project:
+There are three ways to interact with this project:
 - **Play the game** — a Flask web app where you play the Cambio variant against the computer.
 - **Run a simulation** — play out many self-play AI games and generate an HTML analysis report, used to evaluate and tune strategies.
+- **Run a tournament** — play every strategy against every other in a round robin and rank them all on a single Elo-style scale.
 
 ## Rules
 
@@ -54,3 +55,29 @@ to the console. All arguments are forwarded to `simulate.py`:
 | `--seed` | none | random seed for reproducible runs |
 | `--quiet` | off | suppress the per-game log; show progress only |
 | `--max-turns` | `1000` | safety cap on turns per game |
+
+### Run a tournament
+
+```bash
+./run-tournament.sh                                 # 15 profiles + random, 100 games/pairing
+./run-tournament.sh -k 400 --seed 1 --quiet
+./run-tournament.sh --no-random -o profiles.html    # profiles only, no random anchor
+```
+
+Every pair of strategies plays `K` games with balanced sides (each starts half the
+games), and results are fit to a [Bradley-Terry](https://en.wikipedia.org/wiki/Bradley%E2%80%93Terry_model)
+model mapped onto an Elo-style scale — so all strategies are ranked on one
+comparable number. Only win rate matters; margins are ignored and a tie counts as
+half a win. Random is included as a fixed 1500-point calibration floor. This writes
+a standalone HTML report (default `tournament.html`) with a ranking table and a
+head-to-head win-rate matrix, and prints the rankings to the console. All arguments
+are forwarded to `tournament.py`:
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `-k, --games` | `100` | games per pairing (a multiple of 4 balances sides exactly) |
+| `-o, --output` | `tournament.html` | path for the HTML report |
+| `--seed` | none | random seed for reproducible runs |
+| `--no-random` | off | exclude the random baseline (profiles only) |
+| `--max-turns` | `1000` | safety cap on turns per game |
+| `--quiet` | off | suppress per-pairing progress |
