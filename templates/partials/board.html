@@ -24,10 +24,20 @@
 
   <header>
     <h1>Cambio</h1>
-    <form hx-post="/new" hx-target="#board" hx-swap="outerHTML">
-      <button type="submit" class="btn btn-secondary">New Game</button>
-    </form>
+    <div class="header-right">
+      <span class="vs-label">vs {{ opponent_name }}</span>
+      <form hx-post="/choose" hx-target="#board" hx-swap="outerHTML">
+        <button type="submit" class="btn btn-secondary">New Game</button>
+      </form>
+    </div>
   </header>
+
+  <details class="ai-info">
+    <summary>How {{ opponent_name }} plays</summary>
+    <ul>
+      {% for line in opponent_rules %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+  </details>
 
   {# ── Computer hand (2×2) ───────────────────────────────────────────────── #}
   <section class="area computer-area">
