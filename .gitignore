@@ -3,5 +3,12 @@ __pycache__/
 *.pyo
 .env
 
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+pytest.xml
+pytest-coverage.txt
+
 # Default simulator report output
 /report.html

@@ -1,0 +1,12 @@
+# Config only — auto-cambio is run via `python app.py`, not installed as a package.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]   # lets tests do `from game.rules import ...` without an install
+addopts = "-ra"
+
+[tool.coverage.run]
+source = ["game"]    # scope coverage to the domain logic for now
+omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true
