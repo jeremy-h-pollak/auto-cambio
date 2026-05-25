@@ -1,4 +1,4 @@
 {% extends "base.html" %}
 {% block content %}
-{% include "partials/board.html" %}
+{% include partial | default("partials/board.html") %}
 {% endblock %}

@@ -9,3 +9,6 @@ __pycache__/
 htmlcov/
 pytest.xml
 pytest-coverage.txt
+
+# Default simulator report output
+/report.html

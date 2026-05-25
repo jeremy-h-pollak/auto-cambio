@@ -9,11 +9,14 @@ from .rules import (
     snap_eligible_indices, opp_snap_eligible_indices, special_type,
     PHASE_GAME_OVER, PHASE_PLAYER_DRAW, PHASE_PLAYER_SPECIAL, COMPUTER_TURN,
 )
-from .strategy import choose_move, should_snap, apply_computer_special
+from . import strategy as random_strategy
 
 
 class GameEngine:
-    def __init__(self):
+    def __init__(self, strategy=None):
+        # Strategy is a module exposing choose_move / should_snap /
+        # apply_computer_special. Defaults to the random strategy.
+        self.strategy = strategy or random_strategy
         self._next_starter = random.choice(["player", "computer"])
         self.state = create_initial_state(starting_turn=self._next_starter)
         self._next_starter = self._other(self._next_starter)
@@ -47,7 +50,7 @@ class GameEngine:
             )
             snapped = False
             for idx in eligible:
-                if should_snap(self.state, idx):
+                if self.strategy.should_snap(self.state, idx, "computer"):
                     # Simultaneous snap: if player can also snap, 50/50 race
                     if self.state["current_turn"] == "player":
                         player_own = snap_eligible_indices(
@@ -82,7 +85,7 @@ class GameEngine:
         known = self.state["computer_known"]
 
         # Step 1: draw or call cambio
-        move1 = choose_move(self.state, known)
+        move1 = self.strategy.choose_move(self.state, known)
         self.state = apply_move(self.state, move1)
         if move1["action"] == "call_cambio":
             return
@@ -90,7 +93,7 @@ class GameEngine:
         # Step 2: swap or discard
         if self.state["phase"] == COMPUTER_TURN:
             drawn_card = self.state.get("drawn_card")
-            move2 = choose_move(self.state, known)
+            move2 = self.strategy.choose_move(self.state, known)
             self.state = apply_move(self.state, move2)
 
             # Apply computer special ability if a special card was discarded
@@ -101,6 +104,6 @@ class GameEngine:
                     and self.state["cambio_called_by"] is not None
                 )
                 if stype and not blocked and self.state["phase"] != PHASE_GAME_OVER:
-                    self.state = apply_computer_special(self.state, stype)
+                    self.state = self.strategy.apply_computer_special(self.state, stype)
 
         self._run_computer_snaps()
