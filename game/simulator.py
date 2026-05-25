@@ -13,6 +13,7 @@ opening knowledge `[F, F, T, T]` that `create_initial_state` grants.
 
 import random
 import time
+from collections import Counter
 from dataclasses import dataclass, field
 
 from . import strategy as random_strategy
@@ -41,7 +42,8 @@ class GameRecord:
     ending: str                   # "cambio" | "empty" | "capped"
     cambio_caller: str | None     # raw state["cambio_called_by"]
     snaps: dict = field(default_factory=dict)
-    specials: dict = field(default_factory=dict)
+    specials: dict = field(default_factory=dict)     # {seat: Counter(stype -> count)}
+    actions: dict = field(default_factory=dict)      # {seat: Counter(action -> count)}
     log: list = field(default_factory=list)
 
     @property
@@ -87,14 +89,20 @@ def _discard_and_resolve(state, seat, drawn, strat, specials):
     )
     if stype and not blocked:
         strat.apply_special(state, seat, stype)
-        specials[seat] += 1
+        specials[seat][stype] += 1
     return _advance(state, seat)
 
 
-def _take_turn(state, seat, strat, specials):
-    """Run one full turn for `seat`; returns the (new) state."""
+def _take_turn(state, seat, strat, specials, actions):
+    """Run one full turn for `seat`; returns the (new) state.
+
+    Records the strategy's draw-phase choice (move1) and action-phase choice
+    (move2) in `actions[seat]`. Counting only — no RNG is consumed here, so
+    seeded runs stay bit-for-bit reproducible.
+    """
     state["current_turn"] = seat
     move1 = strat.choose_move(state, state[f"{seat}_known"])
+    actions[seat][move1["action"]] += 1
     if move1["action"] == "call_cambio":
         return apply_move(state, {"action": "call_cambio"})
 
@@ -105,6 +113,7 @@ def _take_turn(state, seat, strat, specials):
     state["current_turn"] = seat
     drawn = state["drawn_card"]
     move2 = strat.choose_move(state, state[f"{seat}_known"])
+    actions[seat][move2["action"]] += 1
     if move2["action"] == "swap":
         return apply_move(state, move2)            # apply_move advances the turn
     return _discard_and_resolve(state, seat, drawn, strat, specials)
@@ -142,13 +151,14 @@ def _snap_sweep(state, strat_by_seat, snaps):
 def play_game(strat_by_seat, starting_seat, smart_seat, seat_strategy, max_turns=1000):
     state = create_initial_state(starting_turn=starting_seat)
     snaps = {"player": 0, "computer": 0}
-    specials = {"player": 0, "computer": 0}
+    specials = {"player": Counter(), "computer": Counter()}
+    actions = {"player": Counter(), "computer": Counter()}
 
     state = _snap_sweep(state, strat_by_seat, snaps)   # opening snaps
     turns = 0
     while state["phase"] != PHASE_GAME_OVER and turns < max_turns:
         seat = state["current_turn"]
-        state = _take_turn(state, seat, strat_by_seat[seat], specials)
+        state = _take_turn(state, seat, strat_by_seat[seat], specials, actions)
         turns += 1
         state = _snap_sweep(state, strat_by_seat, snaps)
 
@@ -180,6 +190,7 @@ def play_game(strat_by_seat, starting_seat, smart_seat, seat_strategy, max_turns
         cambio_caller=caller,
         snaps=snaps,
         specials=specials,
+        actions=actions,
         log=state["log"],
     )
 
