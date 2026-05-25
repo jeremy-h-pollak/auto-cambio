@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Run many self-play Cambio games (the smart strategy vs a random strategy),
-stream a per-game log, and write a standalone HTML analysis report.
+Run many self-play Cambio games (a smart strategy vs a random strategy, or the
+random-vs-random baseline) , stream a per-game log, and write a standalone HTML
+analysis report.
 
 Examples:
-    python simulate.py                 # 500 games -> report.html
-    python simulate.py -n 1000 --seed 1
-    python simulate.py -n 5000 --quiet -o out.html
+    python simulate.py                       # 500 games, greedy vs random
+    python simulate.py --strategy minimalist --seed 1 -n 2000 --quiet
+    python simulate.py --strategy random --seed 1 -n 1000   # random-vs-random baseline
 """
 
 import argparse
@@ -15,6 +16,17 @@ from game import strategies
 import game.strategy as random_strategy
 from game.simulator import run_simulation
 from game.report import write_report
+
+# The random strategy's coded rules, surfaced in the report's strategy box when
+# running the random-vs-random baseline.
+_RANDOM_RULES = [
+    "Draw phase: calls Cambio 8% of the time; otherwise draws from the discard pile "
+    "75% of the time when its top card is worth 3 or less, else draws from the deck.",
+    "Action phase: discards the drawn card 70% of the time when it is worth 10 or more "
+    "(else 40%); otherwise swaps it into a random hand slot.",
+    "Snaps each eligible matching card with 70% probability.",
+    "Special abilities (7–K) target random valid cards.",
+]
 
 
 def _result_line(rec):
@@ -49,8 +61,10 @@ def main(argv=None):
                    help="number of games to simulate (default: 500)")
     p.add_argument("-o", "--output", default="report.html",
                    help="path for the HTML report (default: report.html)")
-    p.add_argument("--strategy", default="greedy", choices=list(strategies.PROFILES),
-                   help="which smart-strategy profile to evaluate (default: greedy)")
+    p.add_argument("--strategy", default="greedy",
+                   choices=list(strategies.PROFILES) + ["random"],
+                   help="smart-strategy profile to evaluate, or 'random' for the "
+                        "random-vs-random baseline (default: greedy)")
     p.add_argument("--seed", type=int, default=None,
                    help="random seed for reproducible runs")
     p.add_argument("--quiet", action="store_true",
@@ -70,26 +84,44 @@ def main(argv=None):
             print(f"   {line}")
         print(f"   ▶ {_result_line(rec)}")
 
-    profile = strategies.PROFILES[args.strategy]
-    smart = strategies.SmartStrategy(profile)
+    if args.strategy == "random":
+        # Random-vs-random baseline: both seats run the random strategy. Seat A
+        # ("smart") is randomized per game by run_simulation, so neither label is
+        # pinned to a physical seat — hence the neutral "Random A / Random B".
+        smart = random_strategy
+        smart_label, opp_label = "Random A", "Random B"
+        run_desc = "Random vs Random (baseline)"
+        config_extra = {
+            "strategy_name": "Random",
+            "strategy_rules": _RANDOM_RULES,
+            "label_a": smart_label,
+            "label_b": opp_label,
+            "a_is_random": True,
+            "vs_label": "— random vs random baseline",
+        }
+    else:
+        profile = strategies.PROFILES[args.strategy]
+        smart = strategies.SmartStrategy(profile)
+        smart_label, opp_label = "smart", "random"
+        run_desc = f"{profile.name} vs Random"
+        config_extra = {
+            "strategy_name": profile.name,
+            "strategy_key": profile.key,
+            "strategy_rules": profile.rules,
+        }
 
     seed_note = f", seed={args.seed}" if args.seed is not None else ""
-    print(f"Simulating {args.games} games ({profile.name} vs Random){seed_note} …")
+    print(f"Simulating {args.games} games ({run_desc}){seed_note} …")
     records, timing = run_simulation(
         args.games, smart=smart, opponent=random_strategy,
-        seed=args.seed, max_turns=args.max_turns, on_game=on_game)
+        seed=args.seed, max_turns=args.max_turns, on_game=on_game,
+        smart_label=smart_label, opponent_label=opp_label)
     if args.quiet:
         print()
 
-    config = {
-        "seed": args.seed,
-        "max_turns": args.max_turns,
-        "strategy_name": profile.name,
-        "strategy_key": profile.key,
-        "strategy_rules": profile.rules,
-    }
+    config = {"seed": args.seed, "max_turns": args.max_turns, **config_extra}
     stats = write_report(records, timing, config, args.output)
-    print(f"\n  Strategy: {profile.name} ({profile.key})")
+    print(f"\n  Strategy: {run_desc}")
     _print_summary(stats, args.output)
 
 
