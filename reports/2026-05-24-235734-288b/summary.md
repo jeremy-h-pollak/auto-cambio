@@ -46,3 +46,6 @@ filed_at: 2026-05-24 23:57
 - **Key takeaway:** It ties Minimalist at ~75% — the added complexity bought no win-rate improvement over the simpler `2fa7`.
 - **Surprises / concerns:** Still only tested against Random (a weak opponent, so the 75% may be meaningless); no gain over the simpler Minimalist despite more rules; and the average hand regressed (8.98 vs 8.69).
 - **Verdict / next step:** Test the strategies head-to-head — run Minimalist vs Bargain Hunter (and/or against a stronger AI) to actually separate them, since Random can't.
+
+## Action distribution (added 2026-05-25)
+Report regenerated in the **unified format**, adding a per-seat **"Action distribution — observed vs expected"** section; every number above is unchanged. The random seat calls Cambio 7.3% of its draw-phase decisions (vs the coded **8%**) and splits swap/discard ≈ 50/50, validating the random strategy; the Bargain Hunter seat is deterministic ("—" in the Expected column).

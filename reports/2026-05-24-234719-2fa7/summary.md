@@ -38,3 +38,6 @@ filed_at: 2026-05-24 23:47
 - **Key takeaway:** All four landed — Minimalist dominates random (75.4%), disciplined Cambio is now +EV (56.0%), the low-hand focus works (8.69 vs 17.24), and the first-move sign flipped to a slight edge.
 - **Surprises / concerns:** The thresholds (≤7 call / ≤4 grab / ≤6 draw) are hand-tuned and likely not optimal; and it's only been tested against Random — a weak opponent, so 75% may not hold against a smarter or mirror strategy.
 - **Verdict / next step:** Tune the thresholds — sweep the ≤7 / ≤4 / ≤6 parameters to find better values (and, per the concern, eventually test against a stronger opponent than Random).
+
+## Action distribution (added 2026-05-25)
+Report regenerated in the **unified format** (the baseline and strategy pipelines now share one report generator), adding a per-seat **"Action distribution — observed vs expected"** section; every number above is unchanged. The random seat validates the random implementation (Call Cambio ≈ 8% of draw-phase decisions); the Minimalist seat shows "—" in the Expected column since it is deterministic. This also restores the per-ability and draw-source breakdowns the note above flagged as missing from this format.

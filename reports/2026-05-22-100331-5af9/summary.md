@@ -31,3 +31,10 @@ filed_at: 2026-05-22 10:03
 - **Key takeaway:** Calling Cambio is -EV under the current random play (caller wins only 44.1%); the AI calls too loosely.
 - **Surprises / concerns:** The starting player winning <50% is counterintuitive and worth confirming it's real rather than a bug; the sub-50% caller win rate hints the call/snap logic is calling Cambio while behind.
 - **Verdict / next step:** Keep this as the baseline and move on to strategy work, with Cambio-call timing as the first lever to improve.
+
+## Action distribution (added 2026-05-25)
+Report regenerated in the **unified format** with a per-seat **"Action distribution — observed vs expected"** section; every number above is unchanged (the simulator only gained observational counters — no RNG was touched). Both seats run the random strategy here, so both carry an Expected (coded) column — making this run the cleanest validation of the random implementation:
+- **Call Cambio:** player 7.4% · computer 7.6% of draw-phase decisions, vs the coded **8%** ✓ (slightly under because a game ending mid-sequence truncates the decision pool).
+- **Draw source:** reproduces the split exactly — player 4,354 deck / 1,743 discard.
+- **Action phase:** swap ≈ 52% / discard ≈ 48%, consistent with the 40%-base + high-card (≥10 → 70%) boost.
+- **Specials & snaps** per seat reproduce the figures above (e.g. player blind-switch 467, peek-opp 400).
