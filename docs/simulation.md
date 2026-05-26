@@ -36,20 +36,28 @@ calibration baseline.
 A run produces:
 
 - **Headline cards:** games, smart/random win rate, tie rate, starter win rate, throughput.
-- **Win-rate bars** (smart vs random vs ties).
+- **Win rates:** an SVG **donut** (smart / random / tie split, with the smart win rate in
+  the hole) beside the exact win-rate bars.
 - **First-move advantage:** smart's win rate moving first vs second, plus starter-wins
   overall and decisive-only — isolates the starting-player edge from the strategy edge.
-- **Game-length distribution** histogram.
-- **How games end:** `cambio` / `empty` / `capped` breakdown.
+- **Game-length distribution:** an SVG **bar chart with a labelled y-axis**; hover a bar
+  for its exact count.
+- **How games end:** `cambio` / `empty` / `capped` breakdown — an SVG donut beside the bars.
 - **Run-time** and **other statistics:** avg scores, avg margin, avg length,
   Cambio-caller success rate, avg snaps/game per seat.
 - **Action distribution — observed vs expected:** per-seat mix of every decision. The
   random seat's observed shares are checked against its coded probabilities (the cleanest
   check is Call Cambio ≈ 8%); the smart seat is deterministic, shown as "—".
+- **Interesting results:** an auto-generated highlights block at the bottom — a
+  plain-language headline verdict (bucketed against the ~75% ceiling), notable outliers
+  (high tie rate, capped games, early Cambio calls, favourite special, lopsided wins…),
+  and first-move/fairness commentary. Each highlight is colour-keyed by tone.
 
-Reports are self-contained HTML (inline CSS, plain bars), open offline, and have **no
-third-party dependencies** — see [`game/report.py`](../game/report.py)
-(`compute_stats` + `render_html`).
+Charts are **inline SVG** (no JavaScript, no CDN); reports stay self-contained HTML that
+opens offline with **no third-party dependencies**. The SVG primitives live in
+[`game/charts.py`](../game/charts.py), the highlight heuristics in
+[`game/insights.py`](../game/insights.py), and assembly in
+[`game/report.py`](../game/report.py) (`compute_stats` + `render_html`).
 
 ## How it runs games — and the snap symmetry
 
