@@ -29,11 +29,12 @@ class GameEngine:
     def _other(who):
         return "computer" if who == "player" else "player"
 
-    def player_move(self, action, hand_index=None, owner=None, do_switch=None):
+    def player_move(self, action, hand_index=None, owner=None, do_switch=None, target=None):
         move = {"action": action}
         if hand_index is not None: move["hand_index"] = hand_index
         if owner is not None:      move["owner"] = owner
         if do_switch is not None:  move["do_switch"] = do_switch
+        if target is not None:     move["target"] = target
 
         self.state = apply_move(self.state, move)
         self._run_computer_snaps()

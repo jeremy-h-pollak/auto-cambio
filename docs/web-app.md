@@ -111,20 +111,16 @@ Defined in `app.py`:
   engine drives. The chooser shows each bot's human-readable `rules` so you know what
   you're up against. See [strategies.md](strategies.md).
 
-## ⚠️ Known issue: snapping the opponent's card is broken at runtime
+## Snapping the opponent's card
 
-`board.html` wires an opponent-snap (clicking a *known computer card* that matches the
-discard top) by posting `action=snap` + `target=computer` with **no `owner`**. `/move`
-forwards `target` as a kwarg to `engine.player_move(...)` — but
-`GameEngine.player_move(self, action, hand_index=None, owner=None, do_switch=None)` does
-**not accept `target`**, so the call raises
-`TypeError: ... got an unexpected keyword argument 'target'` and the request 500s.
+When you click a *known computer card* that matches the discard top, `board.html` posts
+`action=snap` + `target=computer` (with no `owner`). `/move` forwards `target` to
+`engine.player_move(...)`, which threads it into the `move` dict; `apply_move` then runs
+the opponent-snap branch — `{"action": "snap", "by": "player", "target": "computer",
+"hand_index": i}` removes the opponent's card and enters the `give_card` special, where
+you pick one of your own cards to hand them.
 
-The rules layer fully supports it: `apply_move` handles `{"action": "snap", "by":
-"player", "target": "computer", "hand_index": i}` (removing the opponent's card, then
-entering the `give_card` special). The gap is only that `player_move` drops the `target`
-field. This path is reachable in normal play (peek a computer card with a 9/10, then that
-rank later hits the discard top), so it's a real bug, not a dead branch.
-
-A fix would be to add `target=None` to `player_move`'s signature and forward it into the
-`move` dict. **This doc records the behavior as-is; the bug has not been fixed here.**
+> History: `player_move` originally didn't accept `target` (its signature stopped at
+> `do_switch`), so this click raised `TypeError: ... unexpected keyword argument 'target'`
+> and 500'd. Fixed by adding `target=None` to `player_move` and forwarding it; regression
+> test: `tests/test_engine.py::test_player_move_forwards_target_for_opponent_snap`.
