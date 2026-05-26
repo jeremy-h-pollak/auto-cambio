@@ -34,8 +34,8 @@ column so the implementation can be validated (see [simulation.md](simulation.md
 ## 2. The smart strategies — `game/strategies.py`
 
 A **single parameterized** strategy (`SmartStrategy`) interpreting a `StrategyProfile`
-of knobs. All 15 named bots are just different profiles — there's one decision algorithm,
-not fifteen.
+of knobs. All 16 named bots are just different profiles — there's one decision algorithm,
+not sixteen.
 
 ### `StrategyProfile` knobs
 
@@ -75,7 +75,7 @@ class StrategyProfile:
 `computer_acted`, `player_touched`). Its switch powers act greedily (swap toward lower
 value).
 
-### The 15 named profiles (`PROFILES`)
+### The 16 named profiles (`PROFILES`)
 
 `get(key)` returns a bound `SmartStrategy(PROFILES[key])`.
 
@@ -96,6 +96,7 @@ value).
 | `counter` | Card Counter | Always fires peek cards to map its hand. |
 | `allrounder` | All-Rounder | Cheap discards (≤3), calls at ≤9 or ≤5 with one unknown. |
 | `minimalist` | Minimalist | **Hardest Mode.** Snaps everything (even negatives), discards ≤4, calls at ≤7. |
+| `reckless` | Reckless Rookie | **Easiest Mode.** Built to lose — never snaps, grabs any discard, gambles every draw, calls Cambio the instant its hand is known. ~36% vs random. |
 
 ## Adding a new strategy
 

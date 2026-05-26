@@ -5,15 +5,29 @@
 
   <section class="lobby">
     <h2>Choose your opponent</h2>
-    <p class="lobby-hint">Pick an AI strategy to play against. You'll see exactly what it does before the game starts.</p>
+    <p class="lobby-hint">Pick an AI strategy to play against. The percentage is its chance to beat the Random AI — the lower it is, the easier the game is for you. You'll see exactly what it does before the game starts.</p>
 
-    <div class="opponent-list">
-      {% for key, name, rules in catalog %}
+    <div class="boss-row">
+      {% for key, name, rules, winrate in catalog if key in ('hardest', 'easiest') %}
         <form hx-post="/describe" hx-target="#board" hx-swap="outerHTML">
           <input type="hidden" name="opponent" value="{{ key }}">
-          <button type="submit" class="opponent-card {% if key == 'random' %}is-random{% endif %}{% if key == 'hardest' %}is-hardest{% endif %}">
-            <span class="opp-name">{% if key == 'hardest' %}🔥 {% endif %}{{ name }}</span>
+          <button type="submit" class="opponent-card {% if key == 'hardest' %}is-hardest{% elif key == 'easiest' %}is-easiest{% endif %}">
+            <span class="opp-name">{% if key == 'hardest' %}🔥 {% elif key == 'easiest' %}🌱 {% endif %}{{ name }}</span>
             <span class="opp-tag">{{ rules[0] }}</span>
+            <span class="opp-winrate">{{ winrate }}</span>
+          </button>
+        </form>
+      {% endfor %}
+    </div>
+
+    <div class="opponent-list">
+      {% for key, name, rules, winrate in catalog if key not in ('hardest', 'easiest') %}
+        <form hx-post="/describe" hx-target="#board" hx-swap="outerHTML">
+          <input type="hidden" name="opponent" value="{{ key }}">
+          <button type="submit" class="opponent-card {% if key == 'random' %}is-random{% endif %}">
+            <span class="opp-name">{{ name }}</span>
+            <span class="opp-tag">{{ rules[0] }}</span>
+            <span class="opp-winrate">{{ winrate }}</span>
           </button>
         </form>
       {% endfor %}
