@@ -6,6 +6,7 @@ import pytest
 
 from game import strategies
 from game import strategy as random_strategy
+from game.strategies_advanced import ADVANCED
 from game.tournament import (
     Entrant,
     bradley_terry,
@@ -91,10 +92,14 @@ def test_to_elo_unanchored_centers_field_mean():
 def test_entrants_include_and_exclude_random():
     full = entrants(include_random=True)
     profiles_only = entrants(include_random=False)
-    assert len(full) == len(strategies.PROFILES) + 1
-    assert len(profiles_only) == len(strategies.PROFILES)
+    # The field is every named profile plus every advanced strategy (+ Random).
+    n_strategies = len(strategies.PROFILES) + len(ADVANCED)
+    assert len(full) == n_strategies + 1
+    assert len(profiles_only) == n_strategies
     assert full[-1].key == "random"
     assert all(e.key != "random" for e in profiles_only)
+    # Every advanced strategy is part of the field.
+    assert set(ADVANCED) <= {e.key for e in profiles_only}
 
 
 # ── run_tournament ─────────────────────────────────────────────────────────────
