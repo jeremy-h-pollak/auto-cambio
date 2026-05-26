@@ -53,3 +53,27 @@ def test_reset_alternates_starting_player():
     first_starter = engine.state["current_turn"]
     engine.reset()
     assert engine.state["current_turn"] != first_starter
+
+
+def test_player_move_forwards_target_for_opponent_snap():
+    """Snapping a known computer card (target=computer) must reach apply_move.
+
+    Regression: player_move dropped the `target` kwarg the /move route forwards,
+    so clicking the opponent's matching card raised TypeError instead of snapping.
+    The snap should remove the computer's card and enter the give_card special.
+    """
+    engine = GameEngine()
+    s = engine.state
+    s["phase"] = PHASE_PLAYER_DRAW
+    s["current_turn"] = "player"
+    s["discard_pile"] = [{"rank": "5", "suit": "♥"}]
+    s["computer_hand"] = [{"rank": "5", "suit": "♠"}, None, None, None]
+    s["player_opponent_known"] = [True, False, False, False]
+    s["player_hand"] = [{"rank": "9", "suit": "♣"}, None, None, None]
+    s["player_known"] = [True, False, False, False]
+
+    engine.player_move("snap", hand_index=0, target="computer")  # must not raise
+
+    assert engine.state["computer_hand"][0] is None
+    assert engine.state["phase"] == PHASE_PLAYER_SPECIAL
+    assert engine.state["special_action"]["type"] == "give_card"

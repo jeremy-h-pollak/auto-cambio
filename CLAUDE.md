@@ -11,7 +11,7 @@ code, and update the matching doc when you change behavior. Map: [docs/README.md
 - [rules.md](docs/rules.md) — full rules of the Cambio variant.
 - [architecture.md](docs/architecture.md) — three layers, the full state dict, the phase machine, key invariants (incl. the engine-vs-simulator snap asymmetry).
 - [project-structure.md](docs/project-structure.md) — per-file responsibilities.
-- [web-app.md](docs/web-app.md) — Flask routes, sessions, HTMX flow, `board.html` form fields (notes one known opponent-snap bug).
+- [web-app.md](docs/web-app.md) — Flask routes, sessions, HTMX flow, `board.html` form fields.
 - [strategies.md](docs/strategies.md) — the strategy interface, `StrategyProfile` knobs, the 15 bots, how to add one.
 - [simulation.md](docs/simulation.md) · [tournament.md](docs/tournament.md) — self-play and the Bradley-Terry/Elo rating.
 - [testing.md](docs/testing.md) · [reports-workflow.md](docs/reports-workflow.md) — tests/CI and the `/file` experiment log.
