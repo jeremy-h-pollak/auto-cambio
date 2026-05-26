@@ -385,6 +385,21 @@ PROFILES = {
         draw_discard_max=4,
         cambio_all_known_sum=7,
     ),
+    "reckless": StrategyProfile(
+        key="reckless",
+        name="Reckless Rookie",
+        rules=[
+            "Never snaps — lets matching cards pile up instead of shrinking its hand.",
+            "Grabs whatever sits on top of the discard pile, good or bad.",
+            "Gambles every draw onto an unknown card — even a high King.",
+            "Calls Cambio the moment it knows all four of its cards, no matter how bad they are.",
+        ],
+        snap_mode="high_only", snap_min_value=14,   # no card reaches 14 -> never snaps
+        draw_discard_max=13,                          # always take the discard top
+        gamble_max=13,                                # gamble any draw onto an unknown slot
+        cambio_all_known_sum=52,                      # call Cambio as soon as the hand is known
+        cambio_known_sum=52,                          # ...even with a card still unknown
+    ),
 }
 
 

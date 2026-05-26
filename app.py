@@ -19,14 +19,30 @@ RANDOM_DESCRIPTION = [
     "No memory and no planning — the baseline every strategy aims to beat.",
 ]
 
-# Strongest of 15 tested strategies by win rate vs Random (multi-seed eval,
-# 40k games each). Surfaced in the chooser as the "Hardest Mode" boss.
-HARDEST_KEY = "minimalist"
-HARDEST_WINRATE = "~75%"
+# Win rate vs Random, measured with simulate.py (avg of seeds 1–3, 4,000 games
+# each), rounded to whole percents. Regenerate after tuning a profile with:
+#     python simulate.py --strategy <key> --seed 1 -n 4000 --quiet
+WINRATE_VS_RANDOM = {
+    "greedy": 71, "aggressive": 65, "conservative": 50, "snapper": 62,
+    "power": 69, "minimalist": 77, "reckless": 36,
+}
 
-# Chooser display order: Hardest Mode, the five original named strategies, Random.
+# The strongest and weakest tested profiles, surfaced as the two "boss" modes.
+HARDEST_KEY = "minimalist"   # highest win rate vs Random
+EASIEST_KEY = "reckless"     # lowest — built to lose, for an easy game
+
+# Chooser display order: the two boss modes, the five original named strategies, Random.
 NAMED_OPPONENTS = ["greedy", "aggressive", "conservative", "snapper", "power"]
-OPPONENT_KEYS = ["hardest"] + NAMED_OPPONENTS + ["random"]
+OPPONENT_KEYS = ["hardest", "easiest"] + NAMED_OPPONENTS + ["random"]
+
+
+def _winrate_label(key):
+    """Short 'chance to beat Random' line shown under each opponent card."""
+    if key == "random":
+        return "≈50% — the coin-flip baseline"
+    profile_key = {"hardest": HARDEST_KEY, "easiest": EASIEST_KEY}.get(key, key)
+    pct = WINRATE_VS_RANDOM.get(profile_key)
+    return f"~{pct}% chance to beat the Random AI" if pct is not None else ""
 
 
 def _opponent_info(key):
@@ -34,8 +50,15 @@ def _opponent_info(key):
     if key == "hardest":
         p = strategies.PROFILES[HARDEST_KEY]
         return f"Hardest Mode — {p.name}", [
-            f"The strongest AI found across 15 tested strategies "
-            f"({HARDEST_WINRATE} win rate vs random).",
+            f"The strongest AI found across 16 tested strategies "
+            f"(~{WINRATE_VS_RANDOM[HARDEST_KEY]}% win rate vs Random).",
+            *p.rules,
+        ]
+    if key == "easiest":
+        p = strategies.PROFILES[EASIEST_KEY]
+        return f"Easiest Mode — {p.name}", [
+            f"The gentlest opponent — it loses to the Random AI most of the time "
+            f"(only ~{WINRATE_VS_RANDOM[EASIEST_KEY]}% win rate vs Random).",
             *p.rules,
         ]
     if key in strategies.PROFILES:
@@ -45,14 +68,16 @@ def _opponent_info(key):
 
 
 def opponent_catalog():
-    """List of (key, name, rules) in chooser display order."""
-    return [(key, *_opponent_info(key)) for key in OPPONENT_KEYS]
+    """List of (key, name, rules, winrate_label) in chooser display order."""
+    return [(key, *_opponent_info(key), _winrate_label(key)) for key in OPPONENT_KEYS]
 
 
 def _strategy_object(key):
     """Resolve an opponent key to a strategy object the engine can drive."""
     if key == "hardest":
         return strategies.get(HARDEST_KEY)
+    if key == "easiest":
+        return strategies.get(EASIEST_KEY)
     if key in strategies.PROFILES:
         return strategies.get(key)
     return random_strategy

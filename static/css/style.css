@@ -363,6 +363,22 @@ header h1 {
   margin-bottom: 16px;
 }
 
+/* Featured "boss" modes (Hardest + Easiest) sit side by side above the grid. */
+.boss-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.boss-row form {
+  display: contents;
+}
+
+.boss-row .opponent-card {
+  flex: 1 1 220px;
+}
+
 .opponent-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -402,7 +418,6 @@ header h1 {
 .opponent-card.is-hardest {
   border-color: #c0392b;
   background: linear-gradient(160deg, rgba(192,57,43,0.30), rgba(0,0,0,0.25));
-  grid-column: 1 / -1;
 }
 
 .opponent-card.is-hardest:hover {
@@ -411,6 +426,19 @@ header h1 {
 
 .opponent-card.is-hardest .opp-name {
   color: #ffd9c8;
+}
+
+.opponent-card.is-easiest {
+  border-color: #4caf82;
+  background: linear-gradient(160deg, rgba(76,175,130,0.30), rgba(0,0,0,0.25));
+}
+
+.opponent-card.is-easiest:hover {
+  border-color: #6fd6a3;
+}
+
+.opponent-card.is-easiest .opp-name {
+  color: #cdeedd;
 }
 
 .opponent-card .opp-name {
@@ -423,6 +451,13 @@ header h1 {
   font-size: 0.82rem;
   color: #b8c8b8;
   line-height: 1.35;
+}
+
+.opponent-card .opp-winrate {
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: #9fd6b6;
+  margin-top: 2px;
 }
 
 /* ── Confirmation screen ── */
