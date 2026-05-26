@@ -29,10 +29,14 @@ omit = ["tests/*"]
 |---|---|---|
 | `tests/test_rules.py` | Rules (unit) | `card_value` (incl. red K = −1), `hand_value` (skips `None` slots), `is_red`, `snap_eligible_indices` (rank match + known filter + empty inputs), `special_type`, `create_initial_state` shape (`deck` = 43, `[F,F,T,T]`, phase `peek`), `get_scores` (the +5 penalty rules, ties), and `apply_move` **immutability** + phase transitions. |
 | `tests/test_engine.py` | Engine (integration) | A full game driven by a trivial legal-move player reaches `game_over` and scores cleanly (exercises rules + strategy + engine end-to-end); `reset()` alternates the starting player. |
+| `tests/test_simulator.py` | Simulator (unit) | `GameRecord.decided_on_cards` — true on an equal-score win (card-count tie-break), false on a strict-score win and on a genuine tie. |
 | `tests/test_tournament.py` | Tournament (unit) | `bradley_terry` (dominance monotone & finite, balanced/all-tie uniform, geo-mean-1 normalization), `to_elo` (exact anchor, field-mean centering), `entrants` include/exclude random, and `run_tournament` bookkeeping (pairings, balanced sides, win matrix, Random anchored at 1500, seeded reproducibility, sorted rankings). |
+| `tests/test_charts.py` | Charts (unit) | The inline-SVG primitives (`donut`, `vbar_chart`, `diverging_gap_bar`, `legend`): well-formed `<svg>`, one element/`<title>` per data point, graceful "No data" + no divide-by-zero on empty/all-zero/all-equal input, and **no `<script>`**. |
+| `tests/test_insights.py` | Insights (unit) | The highlight heuristics at their thresholds — self-play verdict buckets (ceiling/edge/noise/losing + the baseline-asymmetry branch), outlier flags (ties, capped, early Cambio, favourite special), first-move/fairness, and the empty-batch guard; tournament champion/cellar, skill-spread ratio, dominant matchup, upset detection, and the single-entrant guard. |
+| `tests/test_report_render.py` | Report renderers | Both reports **keep every existing section heading** (the additive guarantee), **add** the SVG charts + "Interesting results" highlights, and stay **script-free**. |
 
-There are **no tests for the Flask layer** (`app.py`) or the report renderers — coverage
-is intentionally scoped to the domain logic in `game/`.
+There are **no tests for the Flask layer** (`app.py`); coverage is otherwise scoped to the
+domain logic in `game/`.
 
 ## CI
 
@@ -56,3 +60,8 @@ Permissions are `contents: read` + `pull-requests: write` (for the coverage comm
   `test_engine.py` (seed the RNG for determinism, e.g. `random.seed(0)`).
 - Rating/tournament math → `tests/test_tournament.py`, using the `_round_robin` helper to
   build synthetic win matrices.
+- New chart primitive → `tests/test_charts.py` (assert valid `<svg>`, correct element
+  count, graceful empty-data, no `<script>`). New highlight rule → `tests/test_insights.py`
+  (feed a minimal stats dict / synthetic result and assert the tone+title at the threshold).
+- New report section → extend `tests/test_report_render.py` so the heading is asserted
+  present, locking in the "never silently drop a section" guarantee.

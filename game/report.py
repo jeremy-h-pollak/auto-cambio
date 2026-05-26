@@ -9,6 +9,9 @@ import html
 from collections import Counter
 from datetime import datetime
 
+from . import charts
+from .insights import self_play_highlights
+
 
 def _mean(xs):
     xs = list(xs)
@@ -139,17 +142,37 @@ h2 { font-size:18px; margin:34px 0 14px; border-bottom:1px solid #2a2e3a; paddin
 .bar-track { flex:1; background:#11141c; border-radius:6px; overflow:hidden; height:26px; }
 .bar-fill { height:100%; display:flex; align-items:center; justify-content:flex-end;
             padding:0 8px; color:#08111d; font-size:12px; font-weight:600; white-space:nowrap; }
-.hist { display:flex; align-items:flex-end; gap:3px; height:200px; padding-top:18px; }
-.hist-col { flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; }
-.hist-bar { width:100%; background:var(--smart); border-radius:4px 4px 0 0; position:relative; min-height:1px; }
-.hist-bar span { position:absolute; top:-16px; left:50%; transform:translateX(-50%);
-                 font-size:10px; color:var(--muted); }
-.hist-x { display:flex; gap:3px; margin-top:6px; }
-.hist-x div { flex:1; text-align:center; font-size:10px; color:var(--muted);
-              white-space:nowrap; overflow:hidden; }
 table { width:100%; border-collapse:collapse; margin-top:6px; }
 td,th { text-align:left; padding:6px 8px; border-bottom:1px solid #262a36; font-size:14px; }
 th { color:var(--muted); font-weight:500; }
+
+/* inline-SVG charts */
+.chart-svg { max-width:100%; height:auto; display:block; }
+.chart-svg text { fill:var(--muted); font:11px -apple-system,Segoe UI,Roboto,sans-serif; }
+.chart-svg .axis line { stroke:#2a2e3a; stroke-width:1; }
+.chart-svg .axis-anchor { stroke:#3a4150; stroke-width:1; stroke-dasharray:3 3; }
+.chart-svg .tick.name { fill:var(--ink); }
+.chart-svg .donut-center { fill:var(--ink); font-size:24px; font-weight:600; }
+.chart-svg .donut-sub { fill:var(--muted); font-size:11px; }
+.chart-svg .chart-empty { fill:var(--muted); font-size:13px; }
+.chart-row { display:flex; gap:24px; align-items:center; flex-wrap:wrap; }
+.chart-row .chart { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:8px; }
+.chart-row .bars { flex:1 1 300px; min-width:260px; }
+.chart-legend { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12px; color:var(--muted); }
+.chart-legend .lg-item { display:inline-flex; align-items:center; gap:6px; }
+.chart-legend .lg-swatch { width:10px; height:10px; border-radius:3px; display:inline-block; }
+
+/* interesting-results highlights */
+.highlights { display:flex; flex-direction:column; gap:10px; }
+.highlight { display:flex; gap:12px; align-items:flex-start; background:#11141c;
+             border-left:4px solid var(--muted); border-radius:8px; padding:10px 14px; }
+.highlight.good { border-left-color:var(--accent); }
+.highlight.bad, .highlight.warn { border-left-color:var(--random); }
+.highlight.neutral { border-left-color:var(--smart); }
+.highlight .h-icon { font-size:20px; line-height:1.3; }
+.highlight .h-body { display:flex; flex-direction:column; gap:2px; }
+.highlight .h-title { font-weight:600; }
+.highlight .h-text { color:#cdd3df; font-size:14px; }
 """
 
 
@@ -163,23 +186,32 @@ def _bar(label, value_pct, color, text=None):
     )
 
 
-def _hist_html(bins):
-    if not bins:
-        return "<p>No data.</p>"
-    top = max(c for _, c in bins) or 1
-    cols = "".join(
-        f'<div class="hist-col"><div class="hist-bar" style="height:{(c/top*100):.1f}%">'
-        f'<span>{c}</span></div></div>'
-        for _, c in bins
-    )
-    xs = "".join(f"<div>{html.escape(lbl)}</div>" for lbl, _ in bins)
-    return f'<div class="hist">{cols}</div><div class="hist-x">{xs}</div>'
-
-
 def _card(label, value, sub=""):
     sub = f" <small>{html.escape(sub)}</small>" if sub else ""
     return (f'<div class="card"><div class="label">{html.escape(label)}</div>'
             f'<div class="value">{html.escape(str(value))}{sub}</div></div>')
+
+
+def _highlight_card(item):
+    """Render one insights highlight dict ({tone, icon, title, text})."""
+    tone = item.get("tone", "neutral")
+    return (
+        f'<div class="highlight {html.escape(tone)}">'
+        f'<div class="h-icon">{html.escape(item.get("icon", ""))}</div>'
+        f'<div class="h-body"><div class="h-title">{html.escape(item.get("title", ""))}</div>'
+        f'<div class="h-text">{html.escape(item.get("text", ""))}</div></div></div>'
+    )
+
+
+def _highlights_section(items):
+    """The 'Interesting results' panel built from a list of highlight dicts."""
+    if not items:
+        return ""
+    cards = "".join(_highlight_card(it) for it in items)
+    return (
+        '\n  <h2>Interesting results</h2>\n'
+        '  <div class="panel highlights">' + cards + '</div>'
+    )
 
 
 _SPECIAL_LABELS = (
@@ -269,6 +301,26 @@ def render_html(stats, config):
         _bar(label_b, s["random_winrate"], "var(--random)") +
         _bar("Tie", s["tie_rate"], "var(--tie)")
     )
+    winrate_segments = [
+        (label_a, s["smart_wins"], "var(--smart)"),
+        (label_b, s["random_wins"], "var(--random)"),
+        ("Tie", s["ties"], "var(--tie)"),
+    ]
+    winrate_donut = charts.donut(
+        winrate_segments,
+        center_label=f"{s['smart_winrate']:.0f}%", center_sub=f"{label_a} wins",
+    ) + charts.legend(winrate_segments)
+
+    length_chart = charts.vbar_chart(s["length_hist"])
+
+    endings_donut = charts.donut(
+        [("Cambio", end.get("cambio", 0), "var(--smart)"),
+         ("Empty", end.get("empty", 0), "var(--accent)"),
+         ("Capped", end.get("capped", 0), "var(--random)")],
+        center_label=f"{n:,}", center_sub="games",
+    )
+
+    highlights = _highlights_section(self_play_highlights(s, config))
 
     firstmove = (
         _bar(f"{label_a} moves first", s["smart_first_winrate"], "var(--smart)") +
@@ -349,13 +401,19 @@ def render_html(stats, config):
   <div class="cards">{cards}</div>
 
   <h2>Win rates &mdash; {label_a} vs {label_b}</h2>
-  <div class="panel">{winrates}</div>
+  <div class="panel"><div class="chart-row">
+    <div class="chart">{winrate_donut}</div>
+    <div class="bars">{winrates}</div>
+  </div></div>
 {firstmove_section}
   <h2>Game-length distribution (turns)</h2>
-  <div class="panel">{_hist_html(s['length_hist'])}</div>
+  <div class="panel">{length_chart}</div>
 
   <h2>How games end</h2>
-  <div class="panel">{endings}</div>
+  <div class="panel"><div class="chart-row">
+    <div class="chart">{endings_donut}</div>
+    <div class="bars">{endings}</div>
+  </div></div>
 
   <h2>Run-time</h2>
   <div class="panel"><table>{runtime_rows}</table></div>
@@ -372,6 +430,7 @@ def render_html(stats, config):
     references, not exact targets. The cleanest check is Call&nbsp;Cambio ≈&nbsp;8%.</p>
     {action_tables}
   </div>
+{highlights}
 </div></body></html>"""
 
 

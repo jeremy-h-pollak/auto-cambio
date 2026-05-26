@@ -9,7 +9,9 @@ matrix, and a methodology note. Opens offline as a single file.
 import html
 from datetime import datetime
 
-from .report import _CSS, _card, _pct
+from . import charts
+from .insights import tournament_highlights
+from .report import _CSS, _card, _pct, _highlights_section
 from .tournament import rankings
 
 # Matrix cells: dark-neutral at 50%, toward blue (win) above, orange (loss) below.
@@ -123,6 +125,9 @@ def render_tournament_html(result, config=None):
         _card("Throughput", f"{t['games_per_s']:,.0f}", "games/sec"),
     ])
 
+    rating_chart = charts.diverging_gap_bar([(r["name"], r["rating"]) for r in rows])
+    highlights = _highlights_section(tournament_highlights(result, rows))
+
     anchor_note = ("Random is fixed at 1500 as the calibration floor; every other "
                    "rating reads as points above coin-flip play."
                    if anchored else
@@ -161,7 +166,12 @@ def render_tournament_html(result, config=None):
   <div class="cards">{cards}</div>
 
   <h2>Rankings</h2>
-  <div class="panel">{_rankings_table(rows)}</div>
+  <div class="panel">
+    <p class="sub" style="margin:0 0 14px">Elo-style rating relative to the 1500 anchor
+    (coin-flip play). Bars right of the line beat the field; left of it trail it.</p>
+    {rating_chart}
+    {_rankings_table(rows)}
+  </div>
 
   <h2>Head-to-head win rates</h2>
   <div class="panel">
@@ -173,6 +183,7 @@ def render_tournament_html(result, config=None):
 
   <h2>Methodology</h2>
   <div class="panel">{methodology}</div>
+{highlights}
 </div></body></html>"""
 
 

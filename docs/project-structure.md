@@ -19,6 +19,8 @@ auto-cambio/
 │   ├── strategy_smart.py       # STRATEGY: thin facade exposing the "greedy" profile as a module
 │   ├── engine.py               # ENGINE: GameEngine — owns state, drives live turn flow
 │   ├── simulator.py            # Self-play runner (drives rules directly; symmetric snaps)
+│   ├── charts.py               # Inline-SVG chart primitives (donut, bar, diverging) — no JS
+│   ├── insights.py             # Auto-generated "interesting results" highlight heuristics
 │   ├── report.py               # Standalone HTML report for a simulation batch
 │   ├── tournament.py           # Round-robin + Bradley-Terry → Elo rating
 │   └── tournament_report.py    # Standalone HTML report for a tournament (ranking + matrix)
@@ -37,7 +39,11 @@ auto-cambio/
 ├── tests/                      # pytest suite (run in CI)
 │   ├── test_rules.py           # Unit tests for the pure rules layer
 │   ├── test_engine.py          # Integration smoke test for full-game turn flow
-│   └── test_tournament.py      # Unit tests for Bradley-Terry / Elo + tournament bookkeeping
+│   ├── test_simulator.py       # Unit tests for GameRecord bookkeeping
+│   ├── test_tournament.py      # Unit tests for Bradley-Terry / Elo + tournament bookkeeping
+│   ├── test_charts.py          # Inline-SVG primitives: validity, empty-data, no <script>
+│   ├── test_insights.py        # Highlight heuristics: thresholds + guards
+│   └── test_report_render.py   # Reports keep every section + add SVG/highlights, script-free
 │
 ├── reports/                    # Archived experiment runs (see reports-workflow.md)
 │   ├── INDEX.md                # One-row-per-run log table
@@ -86,12 +92,19 @@ auto-cambio/
 - **`simulator.py`** — batch self-play. `run_simulation(n, smart, opponent, …)` →
   `(records, timing)`; `play_game(...)` → a `GameRecord`. Enforces the symmetric snap
   sweep self-play needs.
+- **`charts.py`** — dependency-free inline-SVG chart primitives shared by both reports:
+  `donut`, `vbar_chart`, `diverging_gap_bar`, `legend`. No JavaScript; each returns a
+  self-contained `<svg>` string that uses the report's CSS colour variables.
+- **`insights.py`** — the highlights engine: `self_play_highlights(stats, config)` and
+  `tournament_highlights(result, rows)`, pure heuristics returning a list of
+  `{tone, icon, title, text}` dicts. Thresholds are named constants at the top.
 - **`report.py`** — `write_report(records, timing, config, path)`: computes stats
-  (`compute_stats`) and renders a self-contained HTML file.
+  (`compute_stats`) and renders a self-contained HTML file with donuts, an SVG length
+  chart, and the "Interesting results" section.
 - **`tournament.py`** — `entrants`, `run_tournament`, `bradley_terry`, `to_elo`,
   `rankings`; the rating math.
-- **`tournament_report.py`** — `write_tournament_report(...)`: rankings table +
-  head-to-head win-rate matrix as standalone HTML.
+- **`tournament_report.py`** — `write_tournament_report(...)`: an SVG rating chart,
+  rankings table, head-to-head win-rate matrix, and "Interesting results" as standalone HTML.
 
 ### Templates & static
 

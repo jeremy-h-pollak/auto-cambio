@@ -23,9 +23,18 @@ ceiling can't.
 | `--max-turns` | `1000` | safety cap on turns per game |
 | `--quiet` | off | suppress per-pairing progress |
 
-The output is a standalone HTML report (rankings table + head-to-head win-rate matrix,
-via [`game/tournament_report.py`](../game/tournament_report.py)) plus a console rankings
-table.
+The output is a standalone HTML report plus a console rankings table, via
+[`game/tournament_report.py`](../game/tournament_report.py). The report has:
+
+- an SVG **rating diverging-bar chart** — each entrant's Elo drawn left/right of the 1500
+  anchor, so the skill spread reads at a glance — above the **rankings table**;
+- the colour-graded **head-to-head win-rate matrix**;
+- the **methodology** note; and
+- an **Interesting results** highlights block: champion, cellar dweller, skill spread (in
+  expected-win-ratio terms via the 400 Elo ≈ 10:1 rule), the most dominant matchup, and the
+  biggest upset (a lower-ranked entrant winning a head-to-head). It is dependency-free
+  inline SVG/HTML — charts from [`game/charts.py`](../game/charts.py), highlight heuristics
+  from [`game/insights.py`](../game/insights.py).
 
 ## The field
 
