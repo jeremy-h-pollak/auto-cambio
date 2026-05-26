@@ -11,11 +11,48 @@ There are three ways to interact with this project:
 
 ## Rules
 
-*Custom rules TBD — to be documented here.*
+Two players each hold **4 face-down cards** and try to end the round with the
+**lowest total point value**.
+
+- **Card values:** A = 1, 2–10 = face value, J = 11, Q = 12, **black King = 13**, **red
+  King = −1**. A hand's score is the sum of its cards.
+- **Setup:** peek at 2 of your 4 cards, then play begins.
+- **On your turn:** draw from the deck or the discard pile, then either swap the card into
+  your hand (discarding the old one) or discard it. Discarding certain cards triggers a
+  **power**: 7/8 peek your own card, 9/10 peek an opponent's, J/Q blind-switch two cards,
+  K peek-then-switch.
+- **Snap:** any time a card you know matches the discard top, you may snap it out of your
+  hand for free (or snap a known card of your opponent's and hand them one of yours).
+- **Call Cambio** when you think you're lowest. The other player gets one last turn, then
+  hands are scored. **Lowest wins** — but if you called and *aren't* lowest, you take a
+  **+5 penalty**.
+
+See **[docs/rules.md](docs/rules.md)** for the complete, authoritative rules.
 
 ## Project Structure
 
-*To be defined as the project grows.*
+```
+app.py / simulate.py / tournament.py   # entry points (+ run-*.sh wrappers)
+game/        # core logic: rules.py, strategy.py, strategies.py, engine.py,
+             #             simulator.py, report.py, tournament.py, tournament_report.py
+templates/   # Jinja2 + HTMX views (board.html, chooser.html, confirm.html)
+static/      # css
+tests/       # pytest suite (run in CI)
+reports/     # archived self-play runs + INDEX.md
+docs/        # full documentation (see below)
+```
+
+See **[docs/project-structure.md](docs/project-structure.md)** for a per-file breakdown.
+
+## Documentation
+
+Full docs live in **[`docs/`](docs/)** — start at **[docs/README.md](docs/README.md)** for
+the map. Highlights:
+
+- [Overview](docs/overview.md) · [Rules](docs/rules.md) · [Architecture](docs/architecture.md)
+- [Web app](docs/web-app.md) · [Strategies](docs/strategies.md)
+- [Simulation](docs/simulation.md) · [Tournament & ratings](docs/tournament.md)
+- [Testing & CI](docs/testing.md) · [Reports workflow](docs/reports-workflow.md)
 
 ## Getting Started
 
