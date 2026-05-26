@@ -1,3 +1,5 @@
+import os
+import socket
 import uuid
 from flask import Flask, render_template, request, session
 
@@ -152,6 +154,29 @@ def new_game():
     return render_template("partials/board.html", **ctx)
 
 
+def _find_free_port(preferred=5001, span=20):
+    """Return an open TCP port: try `preferred` first, then the next `span`
+    ports, then fall back to any OS-assigned free port. Avoids 'Address already
+    in use' so the app always starts."""
+    for port in range(preferred, preferred + span):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("127.0.0.1", port))
+                return port
+            except OSError:
+                continue
+    # All preferred ports busy — let the OS pick any free port.
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
 if __name__ == "__main__":
-    # Port 5000 is reserved by macOS AirPlay; use 5001 instead
-    app.run(debug=True, port=5001)
+    # Port 5000 is reserved by macOS AirPlay, so prefer 5001 — but if anything
+    # is already using it, fall back to the next free port instead of crashing.
+    # CAMBIO_PORT pins the choice so Flask's debug reloader child reuses the
+    # same port (and lets you force a specific port if you ever want to).
+    port = int(os.environ.get("CAMBIO_PORT") or _find_free_port(5001))
+    os.environ["CAMBIO_PORT"] = str(port)
+    print(f"\n  Cambio is running at  ->  http://127.0.0.1:{port}\n")
+    app.run(debug=True, port=port)

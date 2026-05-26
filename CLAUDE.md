@@ -5,10 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Running the app
 
 ```bash
-python app.py          # starts Flask on port 5001 (5000 is taken by macOS AirPlay)
+python app.py          # starts Flask on port 5001, or the next free port if 5001 is busy; prints the URL
 ```
 
-Open `http://localhost:5001` in a browser. Flask runs in debug mode so template changes reload automatically; Python changes require a server restart.
+Open the URL printed on startup (`http://localhost:5001` when free, otherwise the next free port) in a browser. Flask runs in debug mode so template changes reload automatically; Python changes require a server restart.
 
 ## Architecture
 

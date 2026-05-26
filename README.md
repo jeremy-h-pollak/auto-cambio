@@ -33,8 +33,11 @@ pip install -r requirements.txt
 ./run-game.sh
 ```
 
-Then open <http://localhost:5001> in a browser. (Port 5001 is used because macOS
-AirPlay reserves 5000.) This is equivalent to running `python app.py` directly.
+The app prefers port 5001 (macOS AirPlay reserves 5000), but if 5001 is already
+in use it automatically falls back to the next free port — so it always starts,
+even with another copy already running. On startup it prints the exact URL, e.g.
+`Cambio is running at -> http://127.0.0.1:5001`; open the URL shown in the
+terminal. This is equivalent to running `python app.py` directly.
 
 ### Run a simulation
 
