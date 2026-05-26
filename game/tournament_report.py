@@ -134,8 +134,9 @@ def render_tournament_html(result, config=None):
       balanced — each strategy starts half its games and sits in each physical seat
       half the time — so first-move bias cancels out.</li>
       <li><b>Outcome.</b> Lowest hand sum wins (Cambio caller takes a +5 penalty if it
-      isn't lowest). Only win/loss/tie is recorded; <b>margin is ignored</b>. A tie
-      counts as half a win to each side.</li>
+      isn't lowest). Equal sums are broken in favour of the hand holding more cards;
+      a genuine tie (equal sum <b>and</b> equal card count) counts as half a win to
+      each side. Only win/loss/tie is recorded; <b>margin is ignored</b>.</li>
       <li><b>Rating.</b> A Bradley-Terry model is fit to all pairwise results at once
       (Hunter 2004 MM iteration), then mapped to an Elo-style scale via
       rating = anchor + 400·log<sub>10</sub>(strength ratio). {anchor_note} A small
