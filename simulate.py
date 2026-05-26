@@ -13,6 +13,7 @@ Examples:
 import argparse
 
 from game import strategies
+from game.strategies_advanced import ADVANCED, get_advanced
 import game.strategy as random_strategy
 from game.simulator import run_simulation
 from game.report import write_report
@@ -62,9 +63,10 @@ def main(argv=None):
     p.add_argument("-o", "--output", default="report.html",
                    help="path for the HTML report (default: report.html)")
     p.add_argument("--strategy", default="greedy",
-                   choices=list(strategies.PROFILES) + ["random"],
-                   help="smart-strategy profile to evaluate, or 'random' for the "
-                        "random-vs-random baseline (default: greedy)")
+                   choices=list(strategies.PROFILES) + list(ADVANCED) + ["random"],
+                   help="strategy to evaluate — a named profile, an advanced "
+                        "strategy, or 'random' for the random-vs-random baseline "
+                        "(default: greedy)")
     p.add_argument("--seed", type=int, default=None,
                    help="random seed for reproducible runs")
     p.add_argument("--quiet", action="store_true",
@@ -98,6 +100,15 @@ def main(argv=None):
             "label_b": opp_label,
             "a_is_random": True,
             "vs_label": "— random vs random baseline",
+        }
+    elif args.strategy in ADVANCED:
+        smart = get_advanced(args.strategy)
+        smart_label, opp_label = "smart", "random"
+        run_desc = f"{smart.name} vs Random"
+        config_extra = {
+            "strategy_name": smart.name,
+            "strategy_key": smart.key,
+            "strategy_rules": smart.rules,
         }
     else:
         profile = strategies.PROFILES[args.strategy]

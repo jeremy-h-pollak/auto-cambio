@@ -32,6 +32,44 @@ td.num { text-align:right; font-variant-numeric:tabular-nums; }
 """
 
 
+# Fallback description for the Random baseline (it carries no `rules` of its own).
+_RANDOM_RULES = [
+    "Baseline coin-flip play: calls Cambio about 8% of the time; otherwise usually "
+    "grabs a discard top worth 3 or less, else draws from the deck.",
+    "Swaps the drawn card into a random slot, except a high card (10+) it tends to discard.",
+    "Snaps each eligible matching card about 70% of the time; fires every power on a random target.",
+]
+
+
+def _entrant_rules(strat):
+    """The human-readable rule list for an entrant's strategy.
+
+    Parameterized profiles carry them on `.profile.rules`, the advanced strategies
+    on `.rules`; the Random module has neither, so fall back to a fixed blurb.
+    """
+    profile = getattr(strat, "profile", None)
+    if profile is not None and getattr(profile, "rules", None):
+        return list(profile.rules)
+    if getattr(strat, "rules", None):
+        return list(strat.rules)
+    return _RANDOM_RULES
+
+
+def _strategies_section(result, rows):
+    """One bordered box per strategy, in rank order, listing how it plays."""
+    blocks = []
+    for r in rows:
+        e = result.entrants[r["index"]]
+        items = "".join(f"<li>{html.escape(x)}</li>" for x in _entrant_rules(e.strat))
+        blocks.append(
+            '<div class="strategy-box" style="padding-left:14px">'
+            f'<div class="strat-name">{r["rank"]}. {html.escape(e.name)} '
+            f'<span class="vs">· rated {r["rating"]:.0f}</span></div>'
+            f'<ul>{items}</ul></div>'
+        )
+    return "".join(blocks)
+
+
 def _lerp(a, b, t):
     return tuple(round(a[k] + (b[k] - a[k]) * t) for k in range(3))
 
@@ -161,6 +199,13 @@ def render_tournament_html(result, config=None):
 
   <h2>Rankings</h2>
   <div class="panel">{_rankings_table(rows)}</div>
+
+  <h2>How each strategy plays</h2>
+  <div class="panel">
+    <p class="sub" style="margin:0 0 18px">Every entrant's playbook, in rank order —
+    how it draws, swaps, snaps, uses card powers, and decides to call Cambio.</p>
+    {_strategies_section(result, rows)}
+  </div>
 
   <h2>Head-to-head win rates</h2>
   <div class="panel">

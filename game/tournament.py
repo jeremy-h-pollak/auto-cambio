@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 
 from . import strategies
 from . import strategy as random_strategy
+from .strategies_advanced import ADVANCED, get_advanced
 from .simulator import play_game
 
 OTHER = {"player": "computer", "computer": "player"}
@@ -73,10 +74,14 @@ class TournamentResult:
 # ── Entrants ─────────────────────────────────────────────────────────────────
 
 def entrants(include_random=True):
-    """All competitors: the 15 named profiles (in PROFILES order) plus Random."""
+    """All competitors: the 15 named profiles, the 5 advanced strategies, plus Random."""
     field_ = [
         Entrant(key, strategies.PROFILES[key].name, strategies.get(key))
         for key in strategies.PROFILES
+    ]
+    field_ += [
+        Entrant(key, ADVANCED[key].name, get_advanced(key))
+        for key in ADVANCED
     ]
     if include_random:
         field_.append(Entrant(RANDOM_KEY, "Random", random_strategy))
