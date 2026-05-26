@@ -26,6 +26,11 @@ def hand_value(hand):
     return sum(card_value(c) for c in hand if c is not None)
 
 
+def hand_size(hand):
+    """Cards still held; None slots are emptied positions (after a snap)."""
+    return sum(1 for c in hand if c is not None)
+
+
 def is_red(card):
     return card["suit"] in RED_SUITS
 
@@ -459,3 +464,18 @@ def get_scores(state):
     elif caller == "computer" and computer_score > player_score:
         computer_score += penalty
     return player_score, computer_score
+
+
+def get_winner(state):
+    """Winning seat ("player"/"computer") or None for a true tie.
+
+    Lowest score wins. A tie on score is broken in favour of the hand holding
+    MORE cards; only an equal score AND equal card count is a true tie.
+    """
+    player_score, computer_score = get_scores(state)
+    if player_score != computer_score:
+        return "player" if player_score < computer_score else "computer"
+    p, c = hand_size(state["player_hand"]), hand_size(state["computer_hand"])
+    if p != c:
+        return "player" if p > c else "computer"
+    return None

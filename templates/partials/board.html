@@ -324,12 +324,21 @@
     {% endif %}
 
     {% if is_game_over %}
-      {% if player_score < computer_score %}
-        <div class="result win">You win! {{ player_score }} vs {{ computer_score }}</div>
-      {% elif computer_score < player_score %}
-        <div class="result lose">Computer wins. {{ computer_score }} vs {{ player_score }}</div>
+      {% set tiebreak = player_score == computer_score %}
+      {% if winner == "player" %}
+        {% if tiebreak %}
+          <div class="result win">You win on cards! Tied {{ player_score }}–{{ computer_score }}, but you held more cards ({{ player_cards }} vs {{ computer_cards }}).</div>
+        {% else %}
+          <div class="result win">You win! {{ player_score }} vs {{ computer_score }}</div>
+        {% endif %}
+      {% elif winner == "computer" %}
+        {% if tiebreak %}
+          <div class="result lose">Computer wins on cards. Tied {{ computer_score }}–{{ player_score }}, but it held more cards ({{ computer_cards }} vs {{ player_cards }}).</div>
+        {% else %}
+          <div class="result lose">Computer wins. {{ computer_score }} vs {{ player_score }}</div>
+        {% endif %}
       {% else %}
-        <div class="result tie">Tie! Both scored {{ player_score }}</div>
+        <div class="result tie">Tie! Both scored {{ player_score }} with {{ player_cards }} cards each.</div>
       {% endif %}
       <form hx-post="/new" hx-target="#board" hx-swap="outerHTML">
         <button type="submit" class="btn btn-primary">Play Again</button>

@@ -50,6 +50,7 @@ def compute_stats(records, timing):
     smart_wins = sum(1 for r in records if r.smart_won)
     random_wins = sum(1 for r in records if r.random_won)
     ties = sum(1 for r in records if r.is_tie)
+    tiebreak_wins = sum(1 for r in records if r.decided_on_cards)
     starter_wins = sum(1 for r in records if r.starter_won)
 
     smart_first = [r for r in records if r.smart_seat == r.starting_seat]
@@ -79,6 +80,8 @@ def compute_stats(records, timing):
         "smart_winrate": _pct(smart_wins, n),
         "random_winrate": _pct(random_wins, n),
         "tie_rate": _pct(ties, n),
+        "tiebreak_wins": tiebreak_wins,
+        "tiebreak_rate": _pct(tiebreak_wins, n),
         "starter_winrate": _pct(starter_wins, n),
         "starter_winrate_decisive": _pct(
             sum(1 for r in decisive if r.starter_won), len(decisive)
@@ -255,6 +258,8 @@ def render_html(stats, config):
         _card(f"{label_a} win rate", f"{s['smart_winrate']:.1f}%"),
         _card(f"{label_b} win rate", f"{s['random_winrate']:.1f}%"),
         _card("Tie rate", f"{s['tie_rate']:.1f}%"),
+        _card("Decided on cards", f"{s['tiebreak_rate']:.1f}%",
+              "equal score, more cards won"),
         _card("Starter win rate", f"{s['starter_winrate']:.1f}%"),
         _card("Throughput", f"{t['games_per_s']:,.0f}", "games/sec"),
     ])

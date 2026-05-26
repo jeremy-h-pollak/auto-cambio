@@ -5,7 +5,7 @@ from game.engine import GameEngine
 import game.strategy as random_strategy
 from game import strategies
 from game.rules import (
-    card_value, hand_value, is_red, get_scores,
+    card_value, hand_value, hand_size, is_red, get_scores, get_winner,
     snap_eligible_indices, opp_snap_eligible_indices, PHASE_GAME_OVER,
 )
 
@@ -69,9 +69,13 @@ def _get_engine() -> GameEngine:
 
 def _template_context(engine: GameEngine) -> dict:
     s = engine.state
-    player_score, computer_score = (
-        get_scores(s) if s["phase"] == PHASE_GAME_OVER else (None, None)
-    )
+    if s["phase"] == PHASE_GAME_OVER:
+        player_score, computer_score = get_scores(s)
+        winner = get_winner(s)
+        player_cards = hand_size(s["player_hand"])
+        computer_cards = hand_size(s["computer_hand"])
+    else:
+        player_score = computer_score = winner = player_cards = computer_cards = None
     opponent = session.get("opponent", "random")
     name, rules = _opponent_info(opponent)
     return {
@@ -81,6 +85,9 @@ def _template_context(engine: GameEngine) -> dict:
         "is_red": is_red,
         "player_score": player_score,
         "computer_score": computer_score,
+        "winner": winner,
+        "player_cards": player_cards,
+        "computer_cards": computer_cards,
         "snap_eligible": snap_eligible_indices(s["player_hand"], s["discard_pile"], s["player_known"]),
         "opp_snap_eligible": opp_snap_eligible_indices(
             s["computer_hand"], s["player_opponent_known"], s["discard_pile"]

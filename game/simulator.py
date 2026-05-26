@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 
 from . import strategy as random_strategy
 from .rules import (
-    create_initial_state, apply_move, get_scores, special_type,
+    create_initial_state, apply_move, get_scores, get_winner, special_type,
     snap_eligible_indices,
     PHASE_GAME_OVER, PHASE_PLAYER_DRAW, COMPUTER_TURN,
 )
@@ -57,6 +57,11 @@ class GameRecord:
     @property
     def is_tie(self):
         return self.winner_seat is None
+
+    @property
+    def decided_on_cards(self):
+        """Decisive game where both hands tied on score (won on card count)."""
+        return self.winner_seat is not None and self.player_score == self.computer_score
 
     @property
     def starter_won(self):
@@ -163,12 +168,7 @@ def play_game(strat_by_seat, starting_seat, smart_seat, seat_strategy, max_turns
         state = _snap_sweep(state, strat_by_seat, snaps)
 
     player_score, computer_score = get_scores(state)
-    if player_score < computer_score:
-        winner = "player"
-    elif computer_score < player_score:
-        winner = "computer"
-    else:
-        winner = None
+    winner = get_winner(state)
 
     caller = state["cambio_called_by"]
     if state["phase"] != PHASE_GAME_OVER:

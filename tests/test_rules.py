@@ -10,6 +10,8 @@ from game.rules import (
     card_value,
     create_initial_state,
     get_scores,
+    get_winner,
+    hand_size,
     hand_value,
     is_red,
     snap_eligible_indices,
@@ -174,6 +176,38 @@ def test_get_scores_tie_has_no_penalty():
     # Penalty only applies when caller score is strictly greater than opponent's.
     state = _scoring_state([card("5")], [card("5")], "player")
     assert get_scores(state) == (5, 5)
+
+
+# ── hand_size / get_winner ──────────────────────────────────────────────────
+
+
+def test_hand_size_skips_none_slots():
+    # None slots are emptied positions left behind after a snap.
+    assert hand_size([card("5"), None, card("3"), None]) == 2
+
+
+def test_get_winner_lower_score_wins():
+    assert get_winner(_scoring_state([card("2")], [card("9")], None)) == "player"
+    assert get_winner(_scoring_state([card("9")], [card("2")], None)) == "computer"
+
+
+def test_get_winner_tie_broken_by_more_cards():
+    # Equal sums (2+2+1 == 5); the hand holding more cards wins.
+    state = _scoring_state([card("2"), card("2"), card("A")], [card("5")], None)
+    assert get_winner(state) == "player"
+
+
+def test_get_winner_fewer_cards_loses_tiebreak():
+    # Mirror case, and None slots must not count toward the card total.
+    state = _scoring_state(
+        [card("5"), None, None, None], [card("2"), card("2"), card("A")], None
+    )
+    assert get_winner(state) == "computer"
+
+
+def test_get_winner_true_tie_equal_score_and_cards():
+    state = _scoring_state([card("5")], [card("5")], None)
+    assert get_winner(state) is None
 
 
 # ── apply_move immutability ────────────────────────────────────────────────────
