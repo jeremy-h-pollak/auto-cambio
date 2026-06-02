@@ -1,2 +1,3 @@
 Flask>=3.0
-requests>=2.31    # OpenRouter calls for the opt-in LLM strategy (game/llm_client.py)
+requests>=2.31         # OpenRouter calls for the opt-in LLM strategy (game/llm_client.py)
+python-dotenv>=1.0     # loads OPENROUTER_API_KEY / OPENROUTER_MODEL from a gitignored .env

@@ -13,16 +13,30 @@ never touches the network and never needs an API key.
 
 import json
 import os
+import time
 
 import requests
+
+# Load a repo-root .env (if present) so OPENROUTER_API_KEY / OPENROUTER_MODEL can
+# live in a gitignored file instead of the shell. Best-effort: python-dotenv is
+# only needed for the opt-in LLM path, so a normal run without it still works.
+try:
+    from dotenv import load_dotenv, find_dotenv
+    load_dotenv(find_dotenv(usecwd=True))
+except ImportError:
+    pass
 
 # Single place to change the model. Override per-run with $OPENROUTER_MODEL.
 # Defaults to a cheap model; confirm the current cheapest on
 # https://openrouter.ai/models before a big batch. For zero-cost experiments use
-# a ":free" variant (e.g. "meta-llama/llama-3.3-70b-instruct:free").
-DEFAULT_MODEL = "google/gemini-2.5-flash-lite"
+# a ":free" variant (e.g. "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free").
+DEFAULT_MODEL = "google/gemini-3.1-flash-lite"
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+# HTTP statuses worth retrying with backoff (rate limit + transient server errors).
+_RETRY_STATUS = {429, 500, 502, 503, 504}
+_BACKOFFS = (1, 2, 4)   # seconds before retry attempts 1, 2, 3
 
 
 class LLMError(RuntimeError):
@@ -80,13 +94,34 @@ def chat(messages, *, model=None, temperature=0.2, timeout=30, force_json=True):
         "X-Title": "auto-cambio",
     }
 
-    try:
-        resp = requests.post(API_URL, headers=headers, json=body, timeout=timeout)
-    except requests.RequestException as e:
-        raise LLMError(f"request to OpenRouter failed: {e}") from e
+    # Retry transport errors and 429/5xx with simple exponential backoff. A 429
+    # may carry a Retry-After hint; honor it when present. Other 4xx (400 bad
+    # model, 401 bad key, 402 no credit) are not retried — they won't fix
+    # themselves and should surface immediately.
+    last_err = "unknown error"
+    for attempt in range(len(_BACKOFFS) + 1):
+        try:
+            resp = requests.post(API_URL, headers=headers, json=body, timeout=timeout)
+        except requests.RequestException as e:
+            last_err = f"request to OpenRouter failed: {e}"
+            resp = None
+        else:
+            if resp.status_code == 200:
+                break
+            last_err = f"OpenRouter returned HTTP {resp.status_code}: {resp.text[:300]}"
+            if resp.status_code not in _RETRY_STATUS:
+                raise LLMError(last_err)
 
-    if resp.status_code != 200:
-        raise LLMError(f"OpenRouter returned HTTP {resp.status_code}: {resp.text[:300]}")
+        if attempt < len(_BACKOFFS):
+            delay = _BACKOFFS[attempt]
+            if resp is not None:
+                try:
+                    delay = max(delay, float(resp.headers.get("Retry-After", 0)))
+                except (TypeError, ValueError):
+                    pass
+            time.sleep(delay)
+    else:
+        raise LLMError(f"{last_err} (after {len(_BACKOFFS)} retries)")
 
     try:
         data = resp.json()

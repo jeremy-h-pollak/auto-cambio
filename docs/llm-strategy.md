@@ -12,19 +12,32 @@ everywhere** because every decision is a live, metered, network API call.
 
 ## Setup
 
-1. Create an account at <https://openrouter.ai> and add a little credit (or use a
-   `:free` model).
-2. Create an API key and export it:
+1. Sign in at <https://openrouter.ai>. To actually evaluate the bot, add a little
+   credit (Settings → Credits, e.g. $5). Free models work too (see billing below).
+2. Create an API key (Keys page) and **set a per-key credit limit** (e.g. $5) so
+   spend is hard-capped. Copy the `sk-or-...`.
+3. Put it in a `.env` file at the repo root (gitignored; auto-loaded via
+   `python-dotenv`). Copy the template and edit it:
    ```bash
-   export OPENROUTER_API_KEY="sk-or-..."
+   cp .env.example .env
+   # then set OPENROUTER_API_KEY=sk-or-...  (and optionally OPENROUTER_MODEL)
    ```
-3. (Optional) choose the model — defaults to a cheap one
-   (`DEFAULT_MODEL` in `game/llm_client.py`, currently
-   `google/gemini-2.5-flash-lite`). Override per run:
-   ```bash
-   export OPENROUTER_MODEL="meta-llama/llama-3.3-70b-instruct:free"   # zero-cost, rate-limited
-   ```
-   Confirm the cheapest current model on <https://openrouter.ai/models>.
+   (Exporting the vars in your shell instead also works — `.env` is just the
+   convenient default.)
+4. (Optional) choose the model. `DEFAULT_MODEL` in `game/llm_client.py` is a cheap
+   default (`google/gemini-3.1-flash-lite`). Override with `OPENROUTER_MODEL` in
+   `.env`. Confirm current ids/pricing on <https://openrouter.ai/models> — model
+   slugs change over time.
+
+### Billing — no surprise charges
+
+OpenRouter is **prepaid**. Your card is charged only when **you click to buy
+credits**; usage draws down that balance and stops (HTTP 402) at $0 — it is never
+silently billed. **Auto-top-up is off by default**, so your maximum exposure is the
+credit you chose to load, and a **per-key spend limit** caps it further regardless
+of any bug. `:free` models cost $0 but are rate-limited (~20 req/min; ~50 req/day
+until you've bought ≥$10 lifetime, then ~1000/day) — since this strategy makes
+2–5 calls per turn (50–100 per game), free tier suits only a tiny wiring check.
 
 ## Running it
 
@@ -67,6 +80,10 @@ flags: `--llm-model <id>` and `--llm-snaps` (let the model decide snaps too).
 - `game/llm_client.py` accumulates calls / tokens / cost for the run; `simulate.py`
   and `tournament.py` print a one-line summary at the end
   (`llm_client.summary_line()`).
+- `game/llm_client.py` retries transient transport errors and HTTP 429/5xx with a
+  short exponential backoff (1s, 2s, 4s; honoring `Retry-After`) before giving up —
+  this smooths over free-tier rate limits. Hard 4xx (400 bad model, 401 bad key,
+  402 no credit) surface immediately.
 - **Every** API error, unparseable reply, or illegal move retries once, then
   **falls back to the Greedy Minimizer** so games always finish. Each fallback is
   announced loudly — a `⚠ LLM fallback (...)` line on stderr **and** in the game
