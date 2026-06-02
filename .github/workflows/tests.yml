@@ -29,7 +29,7 @@ jobs:
           pytest --junitxml=pytest.xml --cov=game --cov-report=term-missing | tee pytest-coverage.txt
 
       - name: Coverage comment
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         uses: MishaKav/pytest-coverage-comment@main
         with:
           pytest-coverage-path: ./pytest-coverage.txt
