@@ -33,15 +33,24 @@ WINRATE_VS_RANDOM = {
 HARDEST_KEY = "minimalist"   # highest win rate vs Random
 EASIEST_KEY = "reckless"     # lowest — built to lose, for an easy game
 
-# Chooser display order: the two boss modes, the five original named strategies, Random.
+# The OpenRouter LLM opponent is opt-in: it only appears when CAMBIO_ENABLE_LLM is
+# set (and OPENROUTER_API_KEY is configured). It is off by default because every
+# computer move makes a live, metered API call that blocks the HTTP response.
+LLM_ENABLED = bool(os.environ.get("CAMBIO_ENABLE_LLM"))
+
+# Chooser display order: the two boss modes, the five original named strategies,
+# Random, then the LLM (only when enabled).
 NAMED_OPPONENTS = ["greedy", "aggressive", "conservative", "snapper", "power"]
-OPPONENT_KEYS = ["hardest", "easiest"] + NAMED_OPPONENTS + ["random"]
+OPPONENT_KEYS = (["hardest", "easiest"] + NAMED_OPPONENTS + ["random"]
+                 + (["llm"] if LLM_ENABLED else []))
 
 
 def _winrate_label(key):
     """Short 'chance to beat Random' line shown under each opponent card."""
     if key == "random":
         return "≈50% — the coin-flip baseline"
+    if key == "llm":
+        return "experimental — reasons live via an LLM (slow)"
     profile_key = {"hardest": HARDEST_KEY, "easiest": EASIEST_KEY}.get(key, key)
     pct = WINRATE_VS_RANDOM.get(profile_key)
     return f"~{pct}% chance to beat the Random AI" if pct is not None else ""
@@ -63,6 +72,9 @@ def _opponent_info(key):
             f"(only ~{WINRATE_VS_RANDOM[EASIEST_KEY]}% win rate vs Random).",
             *p.rules,
         ]
+    if key == "llm":
+        from game.strategy_llm import LLMStrategy
+        return f"{LLMStrategy.name} (experimental)", LLMStrategy.rules
     if key in strategies.PROFILES:
         p = strategies.PROFILES[key]
         return p.name, p.rules
@@ -80,6 +92,9 @@ def _strategy_object(key):
         return strategies.get(HARDEST_KEY)
     if key == "easiest":
         return strategies.get(EASIEST_KEY)
+    if key == "llm" and LLM_ENABLED:
+        from game.strategy_llm import get_llm_strategy
+        return get_llm_strategy()
     if key in strategies.PROFILES:
         return strategies.get(key)
     return random_strategy

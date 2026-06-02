@@ -73,8 +73,10 @@ class TournamentResult:
 
 # ── Entrants ─────────────────────────────────────────────────────────────────
 
-def entrants(include_random=True):
-    """All competitors: the 15 named profiles, the 5 advanced strategies, plus Random."""
+def entrants(include_random=True, include_llm=False, llm_model=None, llm_snaps=False):
+    """All competitors: the 15 named profiles, the 5 advanced strategies, plus
+    Random. The OpenRouter LLM entrant is added only when `include_llm` is set
+    (opt-in; it makes a live API call per decision)."""
     field_ = [
         Entrant(key, strategies.PROFILES[key].name, strategies.get(key))
         for key in strategies.PROFILES
@@ -85,6 +87,10 @@ def entrants(include_random=True):
     ]
     if include_random:
         field_.append(Entrant(RANDOM_KEY, "Random", random_strategy))
+    if include_llm:
+        from .strategy_llm import get_llm_strategy, LLMStrategy
+        field_.append(Entrant(LLMStrategy.key, LLMStrategy.name,
+                              get_llm_strategy(model=llm_model, llm_snaps=llm_snaps)))
     return field_
 
 

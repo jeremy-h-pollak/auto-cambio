@@ -98,6 +98,16 @@ value).
 | `minimalist` | Minimalist | **Hardest Mode.** Snaps everything (even negatives), discards ≤4, calls at ≤7. |
 | `reckless` | Reckless Rookie | **Easiest Mode.** Built to lose — never snaps, grabs any discard, gambles every draw, calls Cambio the instant its hand is known. ~36% vs random. |
 
+## 3. The LLM strategy — `game/strategy_llm.py`
+
+An **opt-in** strategy (`LLMStrategy`) that implements the same four-method interface
+but delegates each decision to a real LLM via OpenRouter, given only the rules and the
+cards it legitimately knows. It is off by default everywhere (it makes a live, metered
+API call per decision) and gated behind `--enable-llm` / `CAMBIO_ENABLE_LLM`. On any
+API/parse/illegal-move failure it falls back to the Greedy Minimizer (loudly logged).
+See **[llm-strategy.md](llm-strategy.md)** for setup, the prompt contract, and cost
+handling.
+
 ## Adding a new strategy
 
 1. Add a `StrategyProfile` entry to `PROFILES` in `game/strategies.py` with a unique

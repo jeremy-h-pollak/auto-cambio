@@ -63,9 +63,10 @@ def main(argv=None):
     p.add_argument("-o", "--output", default="report.html",
                    help="path for the HTML report (default: report.html)")
     p.add_argument("--strategy", default="greedy",
-                   choices=list(strategies.PROFILES) + list(ADVANCED) + ["random"],
+                   choices=list(strategies.PROFILES) + list(ADVANCED) + ["random", "llm"],
                    help="strategy to evaluate — a named profile, an advanced "
-                        "strategy, or 'random' for the random-vs-random baseline "
+                        "strategy, 'random' for the random-vs-random baseline, or "
+                        "'llm' for the OpenRouter LLM (requires --enable-llm) "
                         "(default: greedy)")
     p.add_argument("--seed", type=int, default=None,
                    help="random seed for reproducible runs")
@@ -73,7 +74,20 @@ def main(argv=None):
                    help="suppress the per-game log; show progress only")
     p.add_argument("--max-turns", type=int, default=1000,
                    help="safety cap on turns per game (default: 1000)")
+    p.add_argument("--enable-llm", action="store_true",
+                   help="opt in to the OpenRouter LLM strategy (slow, costs money; "
+                        "needs OPENROUTER_API_KEY). Off by default.")
+    p.add_argument("--llm-model", default=None,
+                   help="OpenRouter model id for --strategy llm "
+                        "(default: $OPENROUTER_MODEL or a cheap built-in default)")
+    p.add_argument("--llm-snaps", action="store_true",
+                   help="let the LLM decide snaps too (more API calls); off by "
+                        "default the LLM strategy snaps with a cheap heuristic")
     args = p.parse_args(argv)
+
+    if args.strategy == "llm" and not args.enable_llm:
+        p.error("--strategy llm requires --enable-llm (and OPENROUTER_API_KEY). "
+                "The LLM strategy is off by default because it is slow and costs money.")
 
     def on_game(g, rec):
         if args.quiet:
@@ -101,6 +115,20 @@ def main(argv=None):
             "a_is_random": True,
             "vs_label": "— random vs random baseline",
         }
+    elif args.strategy == "llm":
+        from game.strategy_llm import get_llm_strategy
+        from game import llm_client
+        llm_client.reset_usage()
+        smart = get_llm_strategy(model=args.llm_model, llm_snaps=args.llm_snaps)
+        smart_label, opp_label = "smart", "random"
+        run_desc = f"{smart.name} ({llm_client.model_name()}) vs Random"
+        config_extra = {
+            "strategy_name": smart.name,
+            "strategy_key": smart.key,
+            "strategy_rules": smart.rules,
+        }
+        print(f"  ⚠ LLM strategy ON — model {llm_client.model_name()}. This makes a "
+              f"live API call per decision: expect slow, metered runs. Keep -n small.")
     elif args.strategy in ADVANCED:
         smart = get_advanced(args.strategy)
         smart_label, opp_label = "smart", "random"
@@ -134,6 +162,13 @@ def main(argv=None):
     stats = write_report(records, timing, config, args.output)
     print(f"\n  Strategy: {run_desc}")
     _print_summary(stats, args.output)
+
+    if args.strategy == "llm":
+        from game import llm_client
+        print(f"\n  {llm_client.summary_line()}")
+        print(f"  Heuristic fallbacks: {smart.fallback_count} "
+              f"(of {smart.call_count} LLM calls)"
+              + ("  ← check OPENROUTER_API_KEY / model id" if smart.fallback_count else ""))
 
 
 if __name__ == "__main__":
