@@ -13,6 +13,7 @@ code, and update the matching doc when you change behavior. Map: [docs/README.md
 - [project-structure.md](docs/project-structure.md) — per-file responsibilities.
 - [web-app.md](docs/web-app.md) — Flask routes, sessions, HTMX flow, `board.html` form fields.
 - [strategies.md](docs/strategies.md) — the strategy interface, `StrategyProfile` knobs, the 15 bots, how to add one.
+- [llm-strategy.md](docs/llm-strategy.md) — the opt-in OpenRouter LLM strategy (off by default; `--enable-llm` / `CAMBIO_ENABLE_LLM`).
 - [simulation.md](docs/simulation.md) · [tournament.md](docs/tournament.md) — self-play and the Bradley-Terry/Elo rating.
 - [testing.md](docs/testing.md) · [reports-workflow.md](docs/reports-workflow.md) — tests/CI and the `/file` experiment log.
 
