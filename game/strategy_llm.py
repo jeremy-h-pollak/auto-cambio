@@ -216,6 +216,7 @@ class LLMStrategy:
         if include_snapshot:
             content = self._render_snapshot(state, seat) + "\n\n" + prompt
 
+        last_reason = "no reply"
         for attempt in range(2):
             conv["messages"].append({"role": "user", "content": content})
             try:
@@ -229,8 +230,12 @@ class LLMStrategy:
             ok, result = validate(obj) if obj is not None else (False, "not JSON")
             if ok:
                 return result
+            last_reason = result
             content = (f"That reply was invalid ({result}). Respond with ONLY a "
                        f"single valid JSON object as instructed.")
+        # Exhausted retries on an unparseable / illegal reply — count it as a
+        # fallback too, so every fallback is announced (not just API errors).
+        self._notice(state, f"illegal reply: {last_reason}")
         return None
 
     def _notice(self, state, reason):
