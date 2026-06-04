@@ -56,6 +56,38 @@ Without `--enable-llm` / `CAMBIO_ENABLE_LLM`, the strategy is invisible:
 `simulate.py --strategy llm` errors out, and the web chooser omits it. Optional
 flags: `--llm-model <id>` and `--llm-snaps` (let the model decide snaps too).
 
+To watch a specific model reason, set `OPENROUTER_MODEL` before launching the app,
+e.g. `OPENROUTER_MODEL=moonshotai/kimi-k2 CAMBIO_ENABLE_LLM=1 python app.py`. The
+model id is recorded on every prompt-log entry (below).
+
+## Prompt log — watch what the model is asked and answers
+
+When you play the web app against the LLM opponent, a collapsible **“AI prompt
+log”** panel appears under the board and updates after each move. Every model call
+is captured (newest first) with the three things that define the decision:
+
+- **GSi** — the fair-information game-state snapshot the model saw that turn.
+- **Pi** — the assembled prompt: the instruction + the legal moves it was offered.
+- **Mi** — the raw model reply, plus the parsed move (or the error, if a reply was
+  illegal/unparseable or the API failed).
+
+This is an *observation* view: GSi shows the AI's own perspective, so it
+deliberately reveals the cards the model legitimately knows about — handy for
+debugging, but it does spoil some of the opponent's hand.
+
+The same entries are appended as JSON lines to a transcript file so you can review a
+full game afterward. The default path is `llm_logs/prompts.jsonl` under the repo
+root (gitignored); override it with `CAMBIO_LLM_LOG=/path/to/log.jsonl`. Each line
+carries a UTC `ts`, a per-game `session` id, the `seat`, the decision `kind`
+(`draw`, `action`, `snap`, `peek_own`, `peek_opponent`, `blind_switch`, `look`,
+`look_decide`), the `model`, the `state`/`prompt`/`full_prompt`, the raw `response`,
+the `parsed` move, and any `error`. Both sinks are populated in `LLMStrategy._ask`
+(`game/strategy_llm.py`), the single point every prompt flows through; a failed file
+write is swallowed (one stderr warning) so logging never interrupts a game.
+
+Note: with the default snap heuristic (web default; no `--llm-snaps`), snap
+decisions make no API call and so produce no prompt-log entries.
+
 ## How it works
 
 - **One running conversation per game.** A system message states the rules and

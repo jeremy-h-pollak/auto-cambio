@@ -356,4 +356,29 @@
     </section>
   {% endif %}
 
+  {# ── LLM prompt log ──────────────────────────────────────────────────────
+       What the OpenRouter opponent was asked and answered, newest first. This
+       is an observation view: GSi shows the AI's own (fair-information) state,
+       so it deliberately reveals the cards the model legitimately knows. #}
+  {% if state.llm_trace %}
+    <details class="llm-trace" open>
+      <summary>AI prompt log — {{ state.llm_trace | length }} call(s)</summary>
+      {% for e in state.llm_trace | reverse %}
+        <div class="llm-entry">
+          <div class="llm-head">
+            <span class="llm-tag">#{{ e.n }} · {{ e.kind }} · {{ e.model }}</span>
+            {% if e.error %}
+              <span class="llm-bad">⚠ {{ e.error }}</span>
+            {% elif e.parsed is not none %}
+              <span class="llm-move">→ {{ e.parsed | tojson }}</span>
+            {% endif %}
+          </div>
+          {% if e.state %}<div class="llm-label">Game state (GSi)</div><pre>{{ e.state }}</pre>{% endif %}
+          <div class="llm-label">Prompt (Pi)</div><pre>{{ e.prompt }}</pre>
+          {% if e.response %}<div class="llm-label">Response (Mi)</div><pre>{{ e.response }}</pre>{% endif %}
+        </div>
+      {% endfor %}
+    </details>
+  {% endif %}
+
 </div>

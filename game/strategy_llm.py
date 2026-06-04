@@ -30,8 +30,11 @@ Interface (duck-typed, as the simulator/tournament/engine expect):
 """
 
 import json
+import os
 import re
 import sys
+import uuid
+from datetime import datetime, timezone
 
 from . import llm_client, strategies
 from .rules import card_value, special_type
@@ -128,6 +131,14 @@ class LLMStrategy:
         self._fallback = strategies.get("greedy")
         self.call_count = 0
         self.fallback_count = 0
+        # A fresh strategy is built per game, so this groups one game's JSONL
+        # lines (and distinguishes interleaved games in a shared log file).
+        self.session_id = uuid.uuid4().hex[:8]
+        # Where the prompt/response transcript is appended; override with
+        # CAMBIO_LLM_LOG. Default: llm_logs/prompts.jsonl under the repo root.
+        self.log_path = os.environ.get("CAMBIO_LLM_LOG") or os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "llm_logs", "prompts.jsonl")
 
     # ── Conversation / memory in state ───────────────────────────────────────
     def _conv(self, state, seat):
@@ -208,26 +219,38 @@ class LLMStrategy:
         )
 
     # ── One validated model request, with one retry ──────────────────────────
-    def _ask(self, state, seat, prompt, validate, *, include_snapshot=True):
+    def _ask(self, state, seat, prompt, validate, *, include_snapshot=True, kind="move"):
         """Append `prompt` to the conversation, query the model, and return the
-        validated parsed object — or None to signal the caller to fall back."""
+        validated parsed object — or None to signal the caller to fall back.
+
+        Every attempt (the snapshot+prompt that went out, GSi, the raw reply, and
+        the parsed move) is captured into `state["llm_trace"]` and the JSONL log so
+        the web UI / a transcript can show exactly what the model saw and answered.
+        """
         conv = self._conv(state, seat)
-        content = prompt
-        if include_snapshot:
-            content = self._render_snapshot(state, seat) + "\n\n" + prompt
+        snapshot = self._render_snapshot(state, seat) if include_snapshot else None
+        content = (snapshot + "\n\n" + prompt) if snapshot is not None else prompt
 
         last_reason = "no reply"
         for attempt in range(2):
+            # Only the first attempt carries the fair-info GSi; the retry is just a
+            # "that was invalid, resend JSON" nudge, so GSi is None there.
+            gsi = snapshot if attempt == 0 else None
             conv["messages"].append({"role": "user", "content": content})
             try:
                 self.call_count += 1
                 reply = llm_client.chat(conv["messages"], model=self.model)
             except llm_client.LLMError as e:
+                self._record(state, seat, kind, gsi, prompt, content,
+                             response=None, parsed=None, error=f"API error: {e}")
                 self._notice(state, f"API error: {e}")
                 return None
             conv["messages"].append({"role": "assistant", "content": reply})
             obj = _extract_json(reply)
             ok, result = validate(obj) if obj is not None else (False, "not JSON")
+            self._record(state, seat, kind, gsi, prompt, content, response=reply,
+                         parsed=(result if ok else None),
+                         error=(None if ok else result))
             if ok:
                 return result
             last_reason = result
@@ -237,6 +260,41 @@ class LLMStrategy:
         # fallback too, so every fallback is announced (not just API errors).
         self._notice(state, f"illegal reply: {last_reason}")
         return None
+
+    # ── Prompt/response trace (in-state for the UI + JSONL on disk) ────────────
+    def _record(self, state, seat, kind, gsi, prompt, full_prompt, *,
+                response, parsed, error):
+        """Append one prompt/response entry to the live trace and the log file."""
+        trace = state.setdefault("llm_trace", [])
+        entry = {
+            "n": len(trace) + 1,
+            "seat": seat,
+            "kind": kind,
+            "model": llm_client.model_name(),
+            "state": gsi,            # GSi — the fair-info snapshot the model saw
+            "prompt": prompt,        # Pi — the instruction/MOVES text (or retry nudge)
+            "full_prompt": full_prompt,  # exactly what was sent to the API
+            "response": response,    # Mi — raw model reply (None on API error)
+            "parsed": parsed,        # the validated move (None if illegal/failed)
+            "error": error,          # reason when invalid / API error, else None
+        }
+        trace.append(entry)
+        self._write_log_line(entry)
+
+    def _write_log_line(self, entry):
+        """Append the entry as one JSON line. Logging must never break a game, so
+        any I/O error is swallowed (after a one-time stderr warning)."""
+        try:
+            os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
+            line = {"ts": datetime.now(timezone.utc).isoformat(),
+                    "session": self.session_id, **entry}
+            with open(self.log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(line, ensure_ascii=False) + "\n")
+        except OSError as e:
+            if not getattr(self, "_log_warned", False):
+                print(f"  ⚠ LLM log write failed ({e}); continuing without it.",
+                      file=sys.stderr)
+                self._log_warned = True
 
     def _notice(self, state, reason):
         self.fallback_count += 1
@@ -274,7 +332,7 @@ class LLMStrategy:
                 return True, {"action": "call_cambio"}
             return False, f"action {a!r} not legal now"
 
-        result = self._ask(state, seat, prompt, validate)
+        result = self._ask(state, seat, prompt, validate, kind="draw")
         if result is None:
             return self._fallback.choose_move(state, state[f"{seat}_known"])
         return result
@@ -300,7 +358,7 @@ class LLMStrategy:
                 return False, f"hand_index must be one of {held}"
             return False, f"action {a!r} not legal now"
 
-        result = self._ask(state, seat, prompt, validate)
+        result = self._ask(state, seat, prompt, validate, kind="action")
         if result is None:
             return self._fallback.choose_move(state, state[f"{seat}_known"])
         return result
@@ -323,7 +381,7 @@ class LLMStrategy:
                 return True, obj["snap"]
             return False, "need {\"snap\": true|false}"
 
-        result = self._ask(state, seat, prompt, validate)
+        result = self._ask(state, seat, prompt, validate, kind="snap")
         if result is None:
             return self._fallback.should_snap(state, hand_index, seat)
         return result
@@ -347,12 +405,12 @@ class LLMStrategy:
     def _held(self, hand):
         return [i for i, c in enumerate(hand) if c is not None]
 
-    def _pick_index(self, state, seat, prompt, valid_indices, key="index"):
+    def _pick_index(self, state, seat, prompt, valid_indices, key="index", kind="move"):
         def validate(obj):
             if isinstance(obj, dict) and obj.get(key) in valid_indices:
                 return True, obj[key]
             return False, f"{key} must be one of {valid_indices}"
-        return self._ask(state, seat, prompt, validate)
+        return self._ask(state, seat, prompt, validate, kind=kind)
 
     def _do_peek_own(self, state, seat):
         hand, known = state[f"{seat}_hand"], state[f"{seat}_known"]
@@ -361,7 +419,7 @@ class LLMStrategy:
             return
         prompt = (f"You discarded a 7/8. Peek at ONE of your own face-down cards: "
                   f"{unknown}. Reply {{\"index\": i}}.")
-        idx = self._pick_index(state, seat, prompt, unknown)
+        idx = self._pick_index(state, seat, prompt, unknown, kind="peek_own")
         if idx is None:
             self._fallback.apply_special(state, seat, "peek_own")
             return
@@ -381,7 +439,7 @@ class LLMStrategy:
             return
         prompt = (f"You discarded a 9/10. Peek at ONE opponent card: {valid}. "
                   f"Reply {{\"index\": i}}.")
-        idx = self._pick_index(state, seat, prompt, valid)
+        idx = self._pick_index(state, seat, prompt, valid, kind="peek_opponent")
         if idx is None:
             self._fallback.apply_special(state, seat, "peek_opponent")
             return
@@ -422,7 +480,7 @@ class LLMStrategy:
                 return True, (o, p)
             return False, f"own in {me_valid}, opp in {opp_valid}, or switch:false"
 
-        picks = self._ask(state, seat, prompt, validate)
+        picks = self._ask(state, seat, prompt, validate, kind="blind_switch")
         if picks is None:                       # API/parse failure → heuristic
             self._fallback.apply_special(state, seat, "blind_switch")
             return
@@ -463,7 +521,7 @@ class LLMStrategy:
                 return True, (obj["own"], obj["opp"])
             return False, f"own in {me_valid}, opp in {opp_valid}"
 
-        picks = self._ask(state, seat, prompt, validate)
+        picks = self._ask(state, seat, prompt, validate, kind="look")
         if picks is None:
             self._fallback.apply_special(state, seat, "looking_switch")
             return
@@ -485,7 +543,8 @@ class LLMStrategy:
                 return True, obj["switch"]
             return False, "need {\"switch\": true|false}"
 
-        do_switch = self._ask(state, seat, decide_prompt, validate_decide, include_snapshot=False)
+        do_switch = self._ask(state, seat, decide_prompt, validate_decide,
+                              include_snapshot=False, kind="look_decide")
         if do_switch is None:
             do_switch = card_value(opp_card) < card_value(my_card)  # safe default
 
