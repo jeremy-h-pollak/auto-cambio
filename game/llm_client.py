@@ -39,6 +39,15 @@ _RETRY_STATUS = {429, 500, 502, 503, 504}
 _BACKOFFS = (1, 2, 4)   # seconds before retry attempts 1, 2, 3
 
 
+def _is_structured_output_rejection(text):
+    """True if a 400 body says the model/provider doesn't accept response_format.
+    Some providers (e.g. Novita's Kimi) hard-reject the JSON-mode flag with a 400
+    instead of ignoring it; we detect that so the caller can retry without it."""
+    t = (text or "").lower()
+    return ("structured" in t or "response_format" in t or "json_object" in t
+            or "json mode" in t)
+
+
 class LLMError(RuntimeError):
     """Any failure reaching OpenRouter or reading its reply."""
 
@@ -84,8 +93,10 @@ def chat(messages, *, model=None, temperature=0.2, timeout=30, force_json=True):
         "usage": {"include": True},
     }
     if force_json:
-        # Best-effort: honored by models that support structured output, a no-op
-        # for those that don't (we parse leniently regardless).
+        # Best-effort: honored by models that support structured output. Most
+        # providers ignore it when unsupported, but some hard-reject it with a
+        # 400 — handled below by retrying once without it (we parse leniently
+        # regardless).
         body["response_format"] = {"type": "json_object"}
 
     headers = {
@@ -110,6 +121,12 @@ def chat(messages, *, model=None, temperature=0.2, timeout=30, force_json=True):
                 break
             last_err = f"OpenRouter returned HTTP {resp.status_code}: {resp.text[:300]}"
             if resp.status_code not in _RETRY_STATUS:
+                # A provider that rejects JSON mode with a 400: drop the flag and
+                # retry immediately (once) — the reply is parsed leniently anyway.
+                if (resp.status_code == 400 and "response_format" in body
+                        and _is_structured_output_rejection(resp.text)):
+                    body.pop("response_format")
+                    continue
                 raise LLMError(last_err)
 
         if attempt < len(_BACKOFFS):

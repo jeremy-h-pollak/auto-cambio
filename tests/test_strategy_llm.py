@@ -41,6 +41,13 @@ def smart_reply(content):
     return '{"action": "draw_deck"}'
 
 
+@pytest.fixture(autouse=True)
+def _tmp_llm_log(tmp_path, monkeypatch):
+    """Keep the prompt transcript out of the repo: each test writes its JSONL to
+    an isolated tmp file instead of the default llm_logs/prompts.jsonl."""
+    monkeypatch.setenv("CAMBIO_LLM_LOG", str(tmp_path / "prompts.jsonl"))
+
+
 def patch(monkeypatch, fn):
     """Point llm_client.chat at `fn`, which receives the last message content."""
     monkeypatch.setattr(llm_client, "chat",
@@ -303,6 +310,74 @@ def test_who_moves_first_system_message(monkeypatch):
     strat2.choose_move(state2)
     sys_msg2 = state2["_llm"]["computer"]["messages"][0]["content"]
     assert "opponent moved first" in sys_msg2
+
+
+# ── Prompt/response trace ─────────────────────────────────────────────────────
+def test_trace_records_state_prompt_and_move(monkeypatch):
+    patch(monkeypatch, lambda c: '{"action": "draw_deck"}')
+    strat = get_llm_strategy()
+    state = _computer_state()
+    strat.choose_move(state)
+    trace = state["llm_trace"]
+    assert len(trace) == 1
+    e = trace[0]
+    assert e["kind"] == "draw"
+    assert e["state"] and e["state"].startswith("Your hand")   # GSi captured
+    assert "draw phase" in e["prompt"].lower()                  # Pi captured
+    assert e["parsed"] == {"action": "draw_deck"}              # Mi parsed
+    assert e["error"] is None
+
+
+def test_trace_retry_then_success_has_two_entries(monkeypatch):
+    replies = iter(["not json at all", '{"action": "draw_deck"}'])
+    monkeypatch.setattr(llm_client, "chat", lambda m, **k: next(replies))
+    strat = get_llm_strategy()
+    state = _computer_state()
+    strat.choose_move(state)
+    trace = state["llm_trace"]
+    assert len(trace) == 2
+    assert trace[0]["error"] is not None and trace[0]["state"]   # first: GSi + error
+    assert trace[1]["state"] is None                            # retry: no GSi
+    assert trace[1]["parsed"] == {"action": "draw_deck"}
+
+
+def test_trace_written_to_jsonl(monkeypatch):
+    import json
+    patch(monkeypatch, lambda c: '{"action": "draw_deck"}')
+    strat = get_llm_strategy()
+    strat.choose_move(_computer_state())
+    with open(strat.log_path, encoding="utf-8") as f:
+        lines = [json.loads(l) for l in f if l.strip()]
+    assert len(lines) == 1
+    assert lines[0]["session"] == strat.session_id
+    assert lines[0]["kind"] == "draw" and "ts" in lines[0]
+
+
+def test_trace_log_write_failure_does_not_break_game(monkeypatch):
+    # A failed JSONL write must never interrupt a move: the in-state trace still
+    # populates and the strategy keeps going (with a one-time stderr warning).
+    patch(monkeypatch, lambda c: '{"action": "draw_deck"}')
+    strat = get_llm_strategy()
+    def boom(*a, **k):
+        raise OSError("disk full")
+    monkeypatch.setattr("game.strategy_llm.open", boom, raising=False)
+    state = _computer_state()
+    move = strat.choose_move(state)
+    assert move == {"action": "draw_deck"}
+    assert len(state["llm_trace"]) == 1          # in-memory trace unaffected
+    assert strat._log_warned is True
+
+
+def test_trace_records_api_error(monkeypatch):
+    def boom(_content):
+        raise llm_client.LLMError("simulated outage")
+    patch(monkeypatch, boom)
+    strat = get_llm_strategy()
+    state = _computer_state()
+    strat.choose_move(state)
+    e = state["llm_trace"][0]
+    assert e["response"] is None
+    assert "API error" in e["error"]
 
 
 # ── Memory pruning ───────────────────────────────────────────────────────────

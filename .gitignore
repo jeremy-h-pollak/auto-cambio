@@ -13,3 +13,6 @@ pytest-coverage.txt
 # Default simulator / tournament report output
 /report.html
 /tournament.html
+
+# LLM prompt/response transcript (CAMBIO_LLM_LOG default location)
+/llm_logs/

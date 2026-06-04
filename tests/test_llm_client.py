@@ -132,6 +132,35 @@ def test_chat_malformed_body_raises(monkeypatch):
         llm_client.chat([{"role": "user", "content": "x"}])
 
 
+def test_chat_retries_without_json_when_provider_rejects_it(monkeypatch):
+    # Some providers 400 on response_format instead of ignoring it; the client
+    # should drop the flag and retry once, then succeed.
+    _set_key(monkeypatch)
+    bodies = []
+
+    def post(url, headers=None, json=None, timeout=None):
+        bodies.append(json)
+        if "response_format" in json:
+            return FakeResp(status=400,
+                            text="model does not support feature: structured-outputs")
+        return FakeResp()
+
+    monkeypatch.setattr(llm_client.requests, "post", post)
+    out = llm_client.chat([{"role": "user", "content": "x"}], force_json=True)
+    assert out == '{"action": "draw_deck"}'
+    assert len(bodies) == 2                          # one rejected, one retried
+    assert "response_format" not in bodies[1]         # retried without the flag
+
+
+def test_chat_unrelated_400_still_raises(monkeypatch):
+    # A 400 that is NOT about structured output is a hard error (no downgrade).
+    _set_key(monkeypatch)
+    monkeypatch.setattr(llm_client.requests, "post",
+                        lambda *a, **k: FakeResp(status=400, text="bad model id"))
+    with pytest.raises(llm_client.LLMError):
+        llm_client.chat([{"role": "user", "content": "x"}], force_json=True)
+
+
 def test_chat_force_json_toggles_response_format(monkeypatch):
     _set_key(monkeypatch)
     captured = {}

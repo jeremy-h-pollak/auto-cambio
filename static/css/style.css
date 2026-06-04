@@ -335,6 +335,56 @@ header h1 {
   color: #5a8a6a;
 }
 
+/* ── LLM prompt log ── */
+.llm-trace {
+  margin-top: 10px;
+  font-size: 0.78rem;
+  color: #b9c9c9;
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.llm-trace > summary {
+  cursor: pointer;
+  color: #8fb3c9;
+  font-weight: 600;
+}
+.llm-trace .llm-entry {
+  border-top: 1px solid rgba(255,255,255,0.08);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.llm-trace .llm-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.llm-trace .llm-tag { color: #7fa0a0; font-family: monospace; }
+.llm-trace .llm-move { color: #7ec98a; font-family: monospace; }
+.llm-trace .llm-bad { color: #d98a8a; }
+.llm-trace .llm-label {
+  color: #6f8f8f;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.68rem;
+  margin-top: 4px;
+}
+.llm-trace pre {
+  margin: 2px 0 0;
+  padding: 6px 8px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.74rem;
+  color: #cddddd;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
 /* ── Header / opponent label ── */
 .header-right {
   display: flex;
