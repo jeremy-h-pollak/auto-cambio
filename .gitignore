@@ -16,3 +16,6 @@ pytest-coverage.txt
 
 # LLM prompt/response transcript (CAMBIO_LLM_LOG default location)
 /llm_logs/
+
+# Claude Code git worktrees
+/.claude/worktrees/
