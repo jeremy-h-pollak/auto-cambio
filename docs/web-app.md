@@ -109,6 +109,10 @@ Defined in `app.py`:
   the grid; the rest live in `.opponent-list`.
 - `NAMED_OPPONENTS = ["greedy", "aggressive", "conservative", "snapper", "power"]`.
 - `OPPONENT_KEYS = ["hardest", "easiest"] + NAMED_OPPONENTS + ["random"]` — display order.
+  When `CAMBIO_ENABLE_LLM` is set, two model-specific LLM opponents are appended:
+  `"kimi"` (`CAMBIO_KIMI_MODEL`, default `moonshotai/kimi-k2`) and `"haiku"`
+  (`CAMBIO_HAIKU_MODEL`, default `anthropic/claude-haiku-4.5`). Both resolve in
+  `_strategy_object` to `get_llm_strategy(model=...)`. See [llm-strategy.md](llm-strategy.md).
 - `WINRATE_VS_RANDOM` — measured win-rate-vs-Random per profile (avg of seeds 1–3, 4,000
   games each via `simulate.py`). `_winrate_label(key)` turns it into the "~NN% chance to
   beat the Random AI" line shown under every chooser card. Regenerate after tuning a
