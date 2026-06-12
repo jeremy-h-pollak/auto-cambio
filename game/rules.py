@@ -243,6 +243,9 @@ def apply_move(state, move):
         s[kk][idx] = True
         s["drawn_card"] = None
         if s["current_turn"] == "player":
+            # Briefly show the just-placed card face-up so the swap is visible.
+            # Cleared on the player's next turn-start action (see _CLEAR_REVEAL_ON).
+            s["player_reveal"].append(idx)
             if old is not None:
                 msg = f"You swapped position {idx+1} (discarded {old['rank']}{old['suit']})."
             else:
