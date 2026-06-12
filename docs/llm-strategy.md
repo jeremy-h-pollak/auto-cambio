@@ -48,6 +48,9 @@ python simulate.py --strategy llm --enable-llm -n 5 --seed 1
 # Add it to the round-robin (cost scales with -k × field size — use a tiny -k):
 python tournament.py --enable-llm -k 4
 
+# Enter the two named models as distinct competitors, ranked against the whole field:
+python tournament.py --enable-kimi --enable-haiku -k 4
+
 # Play against it in the web app:
 CAMBIO_ENABLE_LLM=1 python app.py    # the two LLM opponents appear in the chooser
 ```
@@ -74,8 +77,11 @@ slugs drift, so each is overridable without code edits via `CAMBIO_KIMI_MODEL` /
 CAMBIO_ENABLE_LLM=1 CAMBIO_KIMI_MODEL=moonshotai/kimi-k2-thinking python app.py
 ```
 
-(The CLI drivers `simulate.py` / `tournament.py` are unchanged — they still use the
-generic `llm` strategy plus `--llm-model` / `OPENROUTER_MODEL`.)
+The model registry lives in `game/llm_opponents.py` (`NAMED_LLM_OPPONENTS`), shared by
+both `app.py` and `tournament.py`. `simulate.py` still uses only the generic `llm`
+strategy plus `--llm-model` / `OPENROUTER_MODEL`, but `tournament.py` can now enter the
+named models as distinct competitors via `--enable-kimi` / `--enable-haiku` (each a
+separate entrant with its own model, rankable against the full field).
 
 ## Prompt log — watch what the model is asked and answers
 

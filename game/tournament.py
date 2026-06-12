@@ -73,10 +73,13 @@ class TournamentResult:
 
 # ── Entrants ─────────────────────────────────────────────────────────────────
 
-def entrants(include_random=True, include_llm=False, llm_model=None, llm_snaps=False):
+def entrants(include_random=True, include_llm=False, llm_model=None, llm_snaps=False,
+             llm_keys=()):
     """All competitors: the 15 named profiles, the 5 advanced strategies, plus
-    Random. The OpenRouter LLM entrant is added only when `include_llm` is set
-    (opt-in; it makes a live API call per decision)."""
+    Random. OpenRouter LLM competitors are opt-in (each makes a live API call per
+    decision): `include_llm` adds the generic LLM entrant, and `llm_keys` adds the
+    named ones (e.g. "kimi", "haiku" from game/llm_opponents.NAMED_LLM_OPPONENTS),
+    each as a distinct entrant with its own model."""
     field_ = [
         Entrant(key, strategies.PROFILES[key].name, strategies.get(key))
         for key in strategies.PROFILES
@@ -91,6 +94,12 @@ def entrants(include_random=True, include_llm=False, llm_model=None, llm_snaps=F
         from .strategy_llm import get_llm_strategy, LLMStrategy
         field_.append(Entrant(LLMStrategy.key, LLMStrategy.name,
                               get_llm_strategy(model=llm_model, llm_snaps=llm_snaps)))
+    if llm_keys:
+        from .strategy_llm import get_llm_strategy
+        from .llm_opponents import NAMED_LLM_OPPONENTS, llm_model as named_model
+        for key in llm_keys:
+            field_.append(Entrant(key, NAMED_LLM_OPPONENTS[key]["name"],
+                                  get_llm_strategy(model=named_model(key), llm_snaps=llm_snaps)))
     return field_
 
 

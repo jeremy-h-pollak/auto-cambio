@@ -39,9 +39,11 @@ EASIEST_KEY = "reckless"     # lowest — built to lose, for an easy game
 LLM_ENABLED = bool(os.environ.get("CAMBIO_ENABLE_LLM"))
 
 # Two model-specific LLM opponents. The OpenRouter model ids drift over time, so
-# each is overridable via an env var without touching code.
-KIMI_MODEL  = os.environ.get("CAMBIO_KIMI_MODEL")  or "moonshotai/kimi-k2"
-HAIKU_MODEL = os.environ.get("CAMBIO_HAIKU_MODEL") or "anthropic/claude-haiku-4.5"
+# each is overridable via an env var without touching code. The registry is shared
+# with the tournament CLI (game/llm_opponents.py) so both agree on the models.
+from game.llm_opponents import llm_model
+KIMI_MODEL  = llm_model("kimi")
+HAIKU_MODEL = llm_model("haiku")
 
 # Chooser display order: the two boss modes, the five original named strategies,
 # Random, then the two LLM opponents (only when enabled).

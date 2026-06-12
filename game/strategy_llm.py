@@ -239,7 +239,15 @@ class LLMStrategy:
             conv["messages"].append({"role": "user", "content": content})
             try:
                 self.call_count += 1
-                reply = llm_client.chat(conv["messages"], model=self.model)
+                # Don't request response_format JSON mode: some models have no
+                # provider that supports it (e.g. moonshotai/kimi-k2 is served by
+                # Novita, which 400-rejects the flag, and require_parameters routing
+                # 404s — no Kimi provider offers it). The prompt already demands a
+                # JSON object, `_extract_json` parses leniently (tolerates fences/
+                # prose), and the retry below nudges stragglers, so the flag only
+                # added a provider-compatibility failure mode for no real benefit.
+                reply = llm_client.chat(conv["messages"], model=self.model,
+                                        force_json=False)
             except llm_client.LLMError as e:
                 self._record(state, seat, kind, gsi, prompt, content,
                              response=None, parsed=None, error=f"API error: {e}")
