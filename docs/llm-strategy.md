@@ -49,20 +49,37 @@ python simulate.py --strategy llm --enable-llm -n 5 --seed 1
 python tournament.py --enable-llm -k 4
 
 # Play against it in the web app:
-CAMBIO_ENABLE_LLM=1 python app.py    # the "OpenRouter LLM" opponent appears in the chooser
+CAMBIO_ENABLE_LLM=1 python app.py    # the two LLM opponents appear in the chooser
 ```
 
 Without `--enable-llm` / `CAMBIO_ENABLE_LLM`, the strategy is invisible:
 `simulate.py --strategy llm` errors out, and the web chooser omits it. Optional
 flags: `--llm-model <id>` and `--llm-snaps` (let the model decide snaps too).
 
-To watch a specific model reason, set `OPENROUTER_MODEL` before launching the app,
-e.g. `OPENROUTER_MODEL=moonshotai/kimi-k2 CAMBIO_ENABLE_LLM=1 python app.py`. The
-model id is recorded on every prompt-log entry (below).
+### Web chooser: two model-specific opponents
+
+With `CAMBIO_ENABLE_LLM=1`, the web chooser surfaces **two** named LLM opponents
+rather than one generic entry, so you can pick which model to play against:
+
+- **Kimi K2 (LLM)** — `moonshotai/kimi-k2`
+- **Claude Haiku (LLM)** — `anthropic/claude-haiku-4.5`
+
+Both are plain `LLMStrategy` instances built with an explicit `model=` (see
+`_strategy_object` in `app.py`); the model id is recorded on every prompt-log entry
+(below), so the log header tells you which model produced each move. OpenRouter
+slugs drift, so each is overridable without code edits via `CAMBIO_KIMI_MODEL` /
+`CAMBIO_HAIKU_MODEL`, e.g.:
+
+```bash
+CAMBIO_ENABLE_LLM=1 CAMBIO_KIMI_MODEL=moonshotai/kimi-k2-thinking python app.py
+```
+
+(The CLI drivers `simulate.py` / `tournament.py` are unchanged — they still use the
+generic `llm` strategy plus `--llm-model` / `OPENROUTER_MODEL`.)
 
 ## Prompt log — watch what the model is asked and answers
 
-When you play the web app against the LLM opponent, a collapsible **“AI prompt
+When you play the web app against either LLM opponent, a collapsible **“AI prompt
 log”** panel appears under the board and updates after each move. Every model call
 is captured (newest first) with the three things that define the decision:
 
