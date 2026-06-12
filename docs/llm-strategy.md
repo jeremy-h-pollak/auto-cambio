@@ -89,7 +89,13 @@ When you play the web app against either LLM opponent, a collapsible **“AI pro
 log”** panel appears under the board and updates after each move. Every model call
 is captured (newest first) with the three things that define the decision:
 
-- **GSi** — the fair-information game-state snapshot the model saw that turn.
+- **Reasoning** — the model's own one-sentence rationale. Every prompt requires a
+  leading `"reason"` key in the JSON reply (reason-before-move), so the panel shows
+  *why* it played each move, not just what. It is best-effort: a missing reason is
+  logged as blank and never fails the move.
+- **GSi** — the fair-information game-state snapshot the model saw that turn. This
+  now includes a **known-card total** line (the sum of the cards this seat
+  legitimately knows) so the model doesn't have to recompute it each turn.
 - **Pi** — the assembled prompt: the instruction + the legal moves it was offered.
 - **Mi** — the raw model reply, plus the parsed move (or the error, if a reply was
   illegal/unparseable or the API failed).
@@ -104,7 +110,7 @@ root (gitignored); override it with `CAMBIO_LLM_LOG=/path/to/log.jsonl`. Each li
 carries a UTC `ts`, a per-game `session` id, the `seat`, the decision `kind`
 (`draw`, `action`, `snap`, `peek_own`, `peek_opponent`, `blind_switch`, `look`,
 `look_decide`), the `model`, the `state`/`prompt`/`full_prompt`, the raw `response`,
-the `parsed` move, and any `error`. Both sinks are populated in `LLMStrategy._ask`
+the `parsed` move, the model's `reason`, and any `error`. Both sinks are populated in `LLMStrategy._ask`
 (`game/strategy_llm.py`), the single point every prompt flows through; a failed file
 write is swallowed (one stderr warning) so logging never interrupts a game.
 
@@ -122,8 +128,13 @@ decisions make no API call and so produce no prompt-log entries.
 - **Fair information only.** Each prompt is built solely from what the seat
   legitimately knows: its own `*_known` slots and opponent slots it has peeked
   (tracked in `state["_lmem"][seat]`, pruned when a remembered card publicly
-  changes). Unknown slots render as `?`. Public facts (discard top, deck count,
-  whose turn, recent public log events) are always included.
+  changes). Unknown slots render as `?`, and a **known-card total** (the sum over
+  the slots this seat knows) is included so the model isn't left to add them up.
+  Public facts (discard top, deck count, whose turn, recent public log events) are
+  always included.
+- **Reason-before-move.** Every prompt asks the model to lead its JSON reply with a
+  short `"reason"` so it reasons before committing; the rationale is captured in the
+  prompt log / JSONL but is best-effort and never affects move validation.
 - **A single model drives moves *and* specials** through that one conversation —
   it picks peek/switch targets and the K look-then-switch decision via focused
   follow-up prompts in the same chat.
