@@ -270,7 +270,7 @@ class LLMStrategy:
             "n": len(trace) + 1,
             "seat": seat,
             "kind": kind,
-            "model": llm_client.model_name(),
+            "model": self.model or llm_client.model_name(),
             "state": gsi,            # GSi — the fair-info snapshot the model saw
             "prompt": prompt,        # Pi — the instruction/MOVES text (or retry nudge)
             "full_prompt": full_prompt,  # exactly what was sent to the API
