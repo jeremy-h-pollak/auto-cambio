@@ -233,6 +233,8 @@ def apply_move(state, move):
         return s
 
     if action == "swap":
+        if s["drawn_card"] is None:
+            return s  # no drawn card to swap in (stale/double click) — ignore safely
         idx = move["hand_index"]
         hk  = "player_hand"   if s["current_turn"] == "player" else "computer_hand"
         kk  = "player_known"  if s["current_turn"] == "player" else "computer_known"
@@ -259,6 +261,8 @@ def apply_move(state, move):
 
     if action == "discard_drawn":
         card = s["drawn_card"]
+        if card is None:
+            return s  # no drawn card to discard (stale/double click) — ignore safely
         s["discard_pile"].append(card)
         s["drawn_card"] = None
         if s["current_turn"] == "player":
@@ -342,6 +346,8 @@ def apply_move(state, move):
     # ── Special ability: player picks a card ─────────────────────────────────
     if action == "pick_card":
         sa    = s["special_action"]
+        if sa is None:
+            return s  # no special in progress (stale/double click) — ignore safely
         owner = move["owner"]
         idx   = move["hand_index"]
         card  = s["player_hand"][idx] if owner == "player" else s["computer_hand"][idx]
@@ -429,6 +435,8 @@ def apply_move(state, move):
     # ── Special ability: decide whether to switch (K) ────────────────────────
     if action == "decide_switch":
         sa        = s["special_action"]
+        if sa is None:
+            return s  # no special in progress (stale/double click) — ignore safely
         do_switch = move["do_switch"]
         my_idx    = sa["picks"][0]["index"]
         their_idx = sa["picks"][1]["index"]
@@ -448,6 +456,8 @@ def apply_move(state, move):
 
     # ── Skip special ability ─────────────────────────────────────────────────
     if action == "skip_special":
+        if s["special_action"] is None:
+            return s  # nothing to skip (stale/double click) — ignore safely
         s["special_action"] = None
         return _advance_turn(s)
 
