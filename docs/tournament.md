@@ -20,6 +20,7 @@ ceiling can't.
 | `-o, --output` | `tournament.html` | path for the HTML report |
 | `--seed` | none | random seed for reproducible runs |
 | `--no-random` | off | exclude the random baseline (profiles only) |
+| `--strategies` | none | comma-separated entrant keys to use as the field instead of all of them (e.g. `cartographer,greedy,random`) |
 | `--max-turns` | `1000` | safety cap on turns per game |
 | `--quiet` | off | suppress per-pairing progress |
 | `--enable-llm` | off | add the generic OpenRouter LLM entrant (`--llm-model`, `--llm-snaps`) |

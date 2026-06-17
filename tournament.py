@@ -48,6 +48,10 @@ def main(argv=None):
                    help="random seed for reproducible runs")
     p.add_argument("--no-random", action="store_true",
                    help="exclude the random baseline (profiles only)")
+    p.add_argument("--strategies", default=None,
+                   help="comma-separated entrant keys to use as the field instead "
+                        "of all of them (e.g. 'cartographer,greedy,random'). Keys "
+                        "are profile/advanced names or 'random'.")
     p.add_argument("--max-turns", type=int, default=1000,
                    help="safety cap on turns per game (default: 1000)")
     p.add_argument("--quiet", action="store_true",
@@ -69,6 +73,9 @@ def main(argv=None):
                         "OPENROUTER_API_KEY). Model overridable via CAMBIO_HAIKU_MODEL.")
     args = p.parse_args(argv)
 
+    keys = ([s.strip() for s in args.strategies.split(",") if s.strip()]
+            if args.strategies else None)
+
     llm_keys = ([k for k, on in (("kimi", args.enable_kimi),
                                  ("haiku", args.enable_haiku)) if on])
     any_llm = args.enable_llm or bool(llm_keys)
@@ -77,7 +84,7 @@ def main(argv=None):
         from game import llm_client
         from game.llm_opponents import llm_model as named_model
         llm_client.reset_usage()
-        n_others = len(entrants(include_random=not args.no_random))
+        n_others = len(entrants(include_random=not args.no_random, keys=keys))
         models = []
         if args.enable_llm:
             models.append(llm_client.model_name())
@@ -88,7 +95,7 @@ def main(argv=None):
 
     field_ = entrants(include_random=not args.no_random, include_llm=args.enable_llm,
                       llm_model=args.llm_model, llm_snaps=args.llm_snaps,
-                      llm_keys=llm_keys)
+                      llm_keys=llm_keys, keys=keys)
 
     def on_pair(idx, total, a, b):
         if args.quiet:
@@ -115,6 +122,8 @@ def main(argv=None):
         from game import llm_client
         from game.llm_opponents import NAMED_LLM_OPPONENTS
         print(f"\n  {llm_client.summary_line()}")
+        for line in llm_client.summary_by_model():
+            print(f"    {line}")
         for e in field_:
             if e.key == "llm" or e.key in NAMED_LLM_OPPONENTS:
                 print(f"  {e.name}: heuristic fallbacks {e.strat.fallback_count} "

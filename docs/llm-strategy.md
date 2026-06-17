@@ -145,7 +145,12 @@ decisions make no API call and so produce no prompt-log entries.
 
 - `game/llm_client.py` accumulates calls / tokens / cost for the run; `simulate.py`
   and `tournament.py` print a one-line summary at the end
-  (`llm_client.summary_line()`).
+  (`llm_client.summary_line()`). A multi-model run (e.g. Kimi + Haiku in one
+  tournament) also gets a **per-model** breakdown via `llm_client.summary_by_model()`.
+- Requests cap `max_tokens` low (replies are tiny JSON moves). OpenRouter
+  credit-checks the *requested* max, not the actual output, so a model's huge
+  default would trigger premature `402`s when little credit remains; the cap lets a
+  run use nearly its full budget without changing real cost.
 - `game/llm_client.py` retries transient transport errors and HTTP 429/5xx with a
   short exponential backoff (1s, 2s, 4s; honoring `Retry-After`) before giving up —
   this smooths over free-tier rate limits. Hard 4xx (400 bad model, 401 bad key,

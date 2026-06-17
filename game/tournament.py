@@ -73,23 +73,44 @@ class TournamentResult:
 
 # ── Entrants ─────────────────────────────────────────────────────────────────
 
+def _catalog():
+    """All non-LLM entrants keyed by their key (profiles, advanced, Random)."""
+    cat = {key: Entrant(key, strategies.PROFILES[key].name, strategies.get(key))
+           for key in strategies.PROFILES}
+    cat.update({key: Entrant(key, ADVANCED[key].name, get_advanced(key))
+                for key in ADVANCED})
+    cat[RANDOM_KEY] = Entrant(RANDOM_KEY, "Random", random_strategy)
+    return cat
+
+
 def entrants(include_random=True, include_llm=False, llm_model=None, llm_snaps=False,
-             llm_keys=()):
+             llm_keys=(), keys=None):
     """All competitors: the 15 named profiles, the 5 advanced strategies, plus
-    Random. OpenRouter LLM competitors are opt-in (each makes a live API call per
-    decision): `include_llm` adds the generic LLM entrant, and `llm_keys` adds the
-    named ones (e.g. "kimi", "haiku" from game/llm_opponents.NAMED_LLM_OPPONENTS),
-    each as a distinct entrant with its own model."""
-    field_ = [
-        Entrant(key, strategies.PROFILES[key].name, strategies.get(key))
-        for key in strategies.PROFILES
-    ]
-    field_ += [
-        Entrant(key, ADVANCED[key].name, get_advanced(key))
-        for key in ADVANCED
-    ]
-    if include_random:
-        field_.append(Entrant(RANDOM_KEY, "Random", random_strategy))
+    Random. Pass `keys` (a list of entrant keys, including "random") to use a
+    specific subset of those in that order instead of the full field. OpenRouter
+    LLM competitors are opt-in (each makes a live API call per decision):
+    `include_llm` adds the generic LLM entrant, and `llm_keys` adds the named ones
+    (e.g. "kimi", "haiku" from game/llm_opponents.NAMED_LLM_OPPONENTS), each as a
+    distinct entrant with its own model."""
+    if keys is not None:
+        cat = _catalog()
+        field_ = []
+        for k in keys:
+            if k not in cat:
+                raise ValueError(
+                    f"unknown strategy key {k!r}; choose from {sorted(cat)}")
+            field_.append(cat[k])
+    else:
+        field_ = [
+            Entrant(key, strategies.PROFILES[key].name, strategies.get(key))
+            for key in strategies.PROFILES
+        ]
+        field_ += [
+            Entrant(key, ADVANCED[key].name, get_advanced(key))
+            for key in ADVANCED
+        ]
+        if include_random:
+            field_.append(Entrant(RANDOM_KEY, "Random", random_strategy))
     if include_llm:
         from .strategy_llm import get_llm_strategy, LLMStrategy
         field_.append(Entrant(LLMStrategy.key, LLMStrategy.name,
