@@ -54,15 +54,27 @@ class LLMError(RuntimeError):
 
 # ── Usage accounting (cumulative across a run) ──────────────────────────────
 _USAGE = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "cost": 0.0}
+# Same counters split by resolved model id, so a multi-model run can report
+# per-model spend (e.g. Kimi vs Haiku in a tournament).
+_USAGE_BY_MODEL = {}
+
+
+def _blank_usage():
+    return {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "cost": 0.0}
 
 
 def reset_usage():
     for k in _USAGE:
         _USAGE[k] = 0 if k != "cost" else 0.0
+    _USAGE_BY_MODEL.clear()
 
 
 def usage():
     return dict(_USAGE)
+
+
+def usage_by_model():
+    return {m: dict(u) for m, u in _USAGE_BY_MODEL.items()}
 
 
 def model_name():
@@ -78,16 +90,24 @@ def _api_key():
     return key
 
 
-def chat(messages, *, model=None, temperature=0.2, timeout=30, force_json=True):
+def chat(messages, *, model=None, temperature=0.2, timeout=30, force_json=True,
+         max_tokens=512):
     """Send `messages` (OpenAI chat format) to OpenRouter; return reply text.
 
     Raises LLMError on transport errors, non-200 responses, or a malformed body.
     Accumulates token/cost usage in the module-level counter.
+
+    `max_tokens` is capped low on purpose: our replies are tiny JSON moves, and
+    OpenRouter reserves (and credit-checks) the *requested* max — not the actual
+    output — so a model's huge default (32k–64k) triggers premature HTTP 402s
+    when little credit remains. A small cap lets a run use nearly its full budget
+    without changing real cost.
     """
     body = {
         "model": model or model_name(),
         "messages": messages,
         "temperature": temperature,
+        "max_tokens": max_tokens,
         # Ask OpenRouter to include cost in the usage block when the model
         # supports it (ignored otherwise).
         "usage": {"include": True},
@@ -146,27 +166,43 @@ def chat(messages, *, model=None, temperature=0.2, timeout=30, force_json=True):
     except (ValueError, KeyError, IndexError, TypeError) as e:
         raise LLMError(f"unexpected OpenRouter response: {resp.text[:300]}") from e
 
-    _record_usage(data.get("usage"))
+    _record_usage(data.get("usage"), body["model"])
     return content
 
 
-def _record_usage(u):
-    _USAGE["calls"] += 1
+def _bump(acc, u):
+    acc["calls"] += 1
     if not isinstance(u, dict):
         return
-    _USAGE["prompt_tokens"] += int(u.get("prompt_tokens") or 0)
-    _USAGE["completion_tokens"] += int(u.get("completion_tokens") or 0)
+    acc["prompt_tokens"] += int(u.get("prompt_tokens") or 0)
+    acc["completion_tokens"] += int(u.get("completion_tokens") or 0)
     cost = u.get("cost")
     if cost is not None:
         try:
-            _USAGE["cost"] += float(cost)
+            acc["cost"] += float(cost)
         except (TypeError, ValueError):
             pass
 
 
+def _record_usage(u, model=None):
+    _bump(_USAGE, u)
+    if model is not None:
+        _bump(_USAGE_BY_MODEL.setdefault(model, _blank_usage()), u)
+
+
 def summary_line():
-    """One-line human summary of accumulated usage."""
+    """One-line human summary of accumulated usage across all models."""
     u = _USAGE
     cost = f"~${u['cost']:.4f}" if u["cost"] else "cost n/a"
     return (f"LLM calls: {u['calls']}  ·  tokens: {u['prompt_tokens']:,} in / "
-            f"{u['completion_tokens']:,} out  ·  {cost}  ·  model: {model_name()}")
+            f"{u['completion_tokens']:,} out  ·  {cost}")
+
+
+def summary_by_model():
+    """One '<model> · …' line per model used (empty if none)."""
+    lines = []
+    for m, u in _USAGE_BY_MODEL.items():
+        cost = f"~${u['cost']:.4f}" if u["cost"] else "cost n/a"
+        lines.append(f"{m}  ·  calls: {u['calls']}  ·  tokens: "
+                     f"{u['prompt_tokens']:,} in / {u['completion_tokens']:,} out  ·  {cost}")
+    return lines
