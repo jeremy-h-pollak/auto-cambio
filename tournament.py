@@ -15,20 +15,30 @@ Examples:
 
 import argparse
 
-from game.tournament import entrants, run_tournament, rankings
+from game.tournament import entrants, run_tournament, rankings, bootstrap_ratings
 from game.tournament_report import write_tournament_report
 
 
-def _print_summary(result, path):
+def _print_summary(result, path, cis=None):
     rows = rankings(result)
-    bar = "=" * 60
+    has_ci = cis is not None
+    width = 78 if has_ci else 60
+    bar = "=" * width
     print("\n" + bar)
-    print(f"  {'#':>2}  {'Strategy':<22}{'Rating':>7}{'Win%':>8}  {'W–L–T':>16}")
-    print("  " + "-" * 56)
+    header = f"  {'#':>2}  {'Strategy':<22}{'Rating':>7}{'Win%':>8}  {'W–L–T':>16}"
+    if has_ci:
+        header += f"  {'95% CI':>16}"
+    print(header)
+    print("  " + "-" * (width - 4))
     for r in rows:
         wlt = f"{r['wins']}–{r['losses']}–{r['ties']}"
-        print(f"  {r['rank']:>2}  {r['name']:<22}{r['rating']:>7.0f}"
-              f"{r['win_pct']:>7.1f}%  {wlt:>16}")
+        line = (f"  {r['rank']:>2}  {r['name']:<22}{r['rating']:>7.0f}"
+                f"{r['win_pct']:>7.1f}%  {wlt:>16}")
+        if has_ci:
+            c = cis[r["index"]]
+            band = f"[{c['lo']:.0f}, {c['hi']:.0f}]"
+            line += f"  {band:>16}"
+        print(line)
     print(bar)
     t = result.timing
     print(f"  {result.total_games:,} games over {t['pairs']} pairings "
@@ -50,6 +60,12 @@ def main(argv=None):
                    help="exclude the random baseline (profiles only)")
     p.add_argument("--max-turns", type=int, default=1000,
                    help="safety cap on turns per game (default: 1000)")
+    p.add_argument("--bootstrap", type=int, default=0, metavar="N",
+                   help="add bootstrap confidence intervals to every rating using N "
+                        "resampled replicates (e.g. 2000); 0 = off (default). Fast — "
+                        "it resamples recorded outcomes, it does not replay games.")
+    p.add_argument("--ci-level", type=float, default=0.95,
+                   help="confidence level for --bootstrap intervals (default: 0.95)")
     p.add_argument("--quiet", action="store_true",
                    help="suppress per-pairing progress")
     p.add_argument("--enable-llm", action="store_true",
@@ -91,9 +107,17 @@ def main(argv=None):
     if args.quiet:
         print()
 
-    config = {"seed": args.seed, "max_turns": args.max_turns}
-    write_tournament_report(result, config, args.output)
-    _print_summary(result, args.output)
+    cis = None
+    if args.bootstrap > 0:
+        print(f"  bootstrapping {args.bootstrap:,} replicates "
+              f"for {args.ci_level:.0%} intervals …")
+        cis = bootstrap_ratings(result, n_boot=args.bootstrap,
+                                ci=args.ci_level, seed=args.seed)
+
+    config = {"seed": args.seed, "max_turns": args.max_turns,
+              "ci_level": args.ci_level}
+    write_tournament_report(result, config, args.output, cis=cis)
+    _print_summary(result, args.output, cis=cis)
 
     if args.enable_llm:
         from game import llm_client

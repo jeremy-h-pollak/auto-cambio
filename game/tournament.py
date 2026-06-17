@@ -17,6 +17,7 @@ strategy sweeps or never wins.
 
 import itertools
 import math
+import random
 import time
 from dataclasses import dataclass, field
 
@@ -112,7 +113,6 @@ def _sides(g):
 def run_tournament(field_, k, seed=None, max_turns=1000, on_pair=None):
     """Play every pairing `k` times; return a fully-rated TournamentResult."""
     if seed is not None:
-        import random
         random.seed(seed)
 
     n = len(field_)
@@ -226,6 +226,73 @@ def to_elo(strengths, anchor_index=None, anchor_rating=ANCHOR_RATING, scale=ELO_
     else:
         ref = math.exp(sum(math.log(p) for p in strengths.values()) / len(strengths))
     return {i: anchor_rating + scale * math.log10(p / ref) for i, p in strengths.items()}
+
+
+def bootstrap_ratings(result, n_boot=2000, ci=0.95, seed=None):
+    """Percentile-bootstrap confidence intervals for each entrant's Elo rating.
+
+    The nonparametric pairwise bootstrap: each replicate resamples every pairing's
+    `k` games with replacement — equivalently, draws fresh `(a_wins, b_wins, ties)`
+    counts from a multinomial with the observed proportions — then refits
+    Bradley-Terry and maps to Elo against the same Random anchor `run_tournament`
+    used. No games are re-simulated; only the (cheap, pure) matrix fits re-run.
+
+    Returns `{index: {"lo", "hi", "median", "samples"}}` where `lo`/`hi` are the
+    `(1±ci)/2` percentile bounds of that entrant's rating across replicates. With
+    Random anchored, its band is the degenerate `[1500, 1500]` by construction.
+    """
+    rng = random.Random(seed)
+    field_ = result.entrants
+    n = len(field_)
+    anchor = next((m for m, e in enumerate(field_) if e.key == RANDOM_KEY), None)
+    pairs = list(result.pairs.values())
+
+    samples = {i: [] for i in range(n)}
+    for _ in range(n_boot):
+        win = [[0.0] * n for _ in range(n)]
+        ngames = [[0] * n for _ in range(n)]
+        for pr in pairs:
+            total = pr.a_wins + pr.b_wins + pr.ties
+            if total <= 0:
+                continue
+            draws = rng.choices((0, 1, 2),
+                                weights=(pr.a_wins, pr.b_wins, pr.ties), k=total)
+            a = draws.count(0)
+            b = draws.count(1)
+            t = total - a - b
+            win[pr.i][pr.j] = a + 0.5 * t
+            win[pr.j][pr.i] = b + 0.5 * t
+            ngames[pr.i][pr.j] = ngames[pr.j][pr.i] = total
+        ratings = to_elo(bradley_terry(win, ngames), anchor_index=anchor)
+        for i in range(n):
+            samples[i].append(ratings[i])
+
+    lo_q = (1.0 - ci) / 2.0
+    hi_q = (1.0 + ci) / 2.0
+    out = {}
+    for i in range(n):
+        s = sorted(samples[i])
+        out[i] = {
+            "lo": _quantile(s, lo_q),
+            "hi": _quantile(s, hi_q),
+            "median": _quantile(s, 0.5),
+            "samples": s,
+        }
+    return out
+
+
+def _quantile(sorted_vals, q):
+    """Linear-interpolated quantile of an already-sorted list (empty -> 0.0)."""
+    if not sorted_vals:
+        return 0.0
+    if len(sorted_vals) == 1:
+        return sorted_vals[0]
+    pos = q * (len(sorted_vals) - 1)
+    lo = math.floor(pos)
+    hi = math.ceil(pos)
+    if lo == hi:
+        return sorted_vals[lo]
+    return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (pos - lo)
 
 
 def rankings(result):
