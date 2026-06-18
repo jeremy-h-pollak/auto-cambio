@@ -58,6 +58,10 @@ def main(argv=None):
                    help="random seed for reproducible runs")
     p.add_argument("--no-random", action="store_true",
                    help="exclude the random baseline (profiles only)")
+    p.add_argument("--strategies", default=None,
+                   help="comma-separated entrant keys to use as the field instead "
+                        "of all of them (e.g. 'cartographer,greedy,random'). Keys "
+                        "are profile/advanced names or 'random'.")
     p.add_argument("--max-turns", type=int, default=1000,
                    help="safety cap on turns per game (default: 1000)")
     p.add_argument("--bootstrap", type=int, default=0, metavar="N",
@@ -77,18 +81,37 @@ def main(argv=None):
                         "(default: $OPENROUTER_MODEL or a cheap built-in default)")
     p.add_argument("--llm-snaps", action="store_true",
                    help="let the LLM decide snaps too (many more API calls)")
+    p.add_argument("--enable-kimi", action="store_true",
+                   help="add Kimi K2 as a named LLM entrant (slow, costs money; needs "
+                        "OPENROUTER_API_KEY). Model overridable via CAMBIO_KIMI_MODEL.")
+    p.add_argument("--enable-haiku", action="store_true",
+                   help="add Claude Haiku as a named LLM entrant (slow, costs money; needs "
+                        "OPENROUTER_API_KEY). Model overridable via CAMBIO_HAIKU_MODEL.")
     args = p.parse_args(argv)
 
-    if args.enable_llm:
+    keys = ([s.strip() for s in args.strategies.split(",") if s.strip()]
+            if args.strategies else None)
+
+    llm_keys = ([k for k, on in (("kimi", args.enable_kimi),
+                                 ("haiku", args.enable_haiku)) if on])
+    any_llm = args.enable_llm or bool(llm_keys)
+
+    if any_llm:
         from game import llm_client
+        from game.llm_opponents import llm_model as named_model
         llm_client.reset_usage()
-        n_others = len(entrants(include_random=not args.no_random))
-        print(f"  ⚠ LLM entrant ON — model {llm_client.model_name()}. It will play "
-              f"~{n_others * args.games:,} games, each turn a live API call. "
+        n_others = len(entrants(include_random=not args.no_random, keys=keys))
+        models = []
+        if args.enable_llm:
+            models.append(llm_client.model_name())
+        models += [named_model(k) for k in llm_keys]
+        print(f"  ⚠ LLM entrants ON — {', '.join(models)}. Each plays "
+              f"~{n_others * args.games:,} games, every turn a live API call. "
               f"This can be slow and expensive; keep -k small (e.g. 4).")
 
     field_ = entrants(include_random=not args.no_random, include_llm=args.enable_llm,
-                      llm_model=args.llm_model, llm_snaps=args.llm_snaps)
+                      llm_model=args.llm_model, llm_snaps=args.llm_snaps,
+                      llm_keys=llm_keys, keys=keys)
 
     def on_pair(idx, total, a, b):
         if args.quiet:
@@ -119,13 +142,16 @@ def main(argv=None):
     write_tournament_report(result, config, args.output, cis=cis)
     _print_summary(result, args.output, cis=cis)
 
-    if args.enable_llm:
+    if any_llm:
         from game import llm_client
-        llm = next((e.strat for e in field_ if e.key == "llm"), None)
+        from game.llm_opponents import NAMED_LLM_OPPONENTS
         print(f"\n  {llm_client.summary_line()}")
-        if llm is not None:
-            print(f"  Heuristic fallbacks: {llm.fallback_count} "
-                  f"(of {llm.call_count} LLM calls)")
+        for line in llm_client.summary_by_model():
+            print(f"    {line}")
+        for e in field_:
+            if e.key == "llm" or e.key in NAMED_LLM_OPPONENTS:
+                print(f"  {e.name}: heuristic fallbacks {e.strat.fallback_count} "
+                      f"(of {e.strat.call_count} LLM calls)")
 
 
 if __name__ == "__main__":

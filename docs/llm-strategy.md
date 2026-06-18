@@ -48,6 +48,9 @@ python simulate.py --strategy llm --enable-llm -n 5 --seed 1
 # Add it to the round-robin (cost scales with -k × field size — use a tiny -k):
 python tournament.py --enable-llm -k 4
 
+# Enter the two named models as distinct competitors, ranked against the whole field:
+python tournament.py --enable-kimi --enable-haiku -k 4
+
 # Play against it in the web app:
 CAMBIO_ENABLE_LLM=1 python app.py    # the two LLM opponents appear in the chooser
 ```
@@ -74,8 +77,11 @@ slugs drift, so each is overridable without code edits via `CAMBIO_KIMI_MODEL` /
 CAMBIO_ENABLE_LLM=1 CAMBIO_KIMI_MODEL=moonshotai/kimi-k2-thinking python app.py
 ```
 
-(The CLI drivers `simulate.py` / `tournament.py` are unchanged — they still use the
-generic `llm` strategy plus `--llm-model` / `OPENROUTER_MODEL`.)
+The model registry lives in `game/llm_opponents.py` (`NAMED_LLM_OPPONENTS`), shared by
+both `app.py` and `tournament.py`. `simulate.py` still uses only the generic `llm`
+strategy plus `--llm-model` / `OPENROUTER_MODEL`, but `tournament.py` can now enter the
+named models as distinct competitors via `--enable-kimi` / `--enable-haiku` (each a
+separate entrant with its own model, rankable against the full field).
 
 ## Prompt log — watch what the model is asked and answers
 
@@ -83,7 +89,13 @@ When you play the web app against either LLM opponent, a collapsible **“AI pro
 log”** panel appears under the board and updates after each move. Every model call
 is captured (newest first) with the three things that define the decision:
 
-- **GSi** — the fair-information game-state snapshot the model saw that turn.
+- **Reasoning** — the model's own one-sentence rationale. Every prompt requires a
+  leading `"reason"` key in the JSON reply (reason-before-move), so the panel shows
+  *why* it played each move, not just what. It is best-effort: a missing reason is
+  logged as blank and never fails the move.
+- **GSi** — the fair-information game-state snapshot the model saw that turn. This
+  now includes a **known-card total** line (the sum of the cards this seat
+  legitimately knows) so the model doesn't have to recompute it each turn.
 - **Pi** — the assembled prompt: the instruction + the legal moves it was offered.
 - **Mi** — the raw model reply, plus the parsed move (or the error, if a reply was
   illegal/unparseable or the API failed).
@@ -98,7 +110,7 @@ root (gitignored); override it with `CAMBIO_LLM_LOG=/path/to/log.jsonl`. Each li
 carries a UTC `ts`, a per-game `session` id, the `seat`, the decision `kind`
 (`draw`, `action`, `snap`, `peek_own`, `peek_opponent`, `blind_switch`, `look`,
 `look_decide`), the `model`, the `state`/`prompt`/`full_prompt`, the raw `response`,
-the `parsed` move, and any `error`. Both sinks are populated in `LLMStrategy._ask`
+the `parsed` move, the model's `reason`, and any `error`. Both sinks are populated in `LLMStrategy._ask`
 (`game/strategy_llm.py`), the single point every prompt flows through; a failed file
 write is swallowed (one stderr warning) so logging never interrupts a game.
 
@@ -116,8 +128,13 @@ decisions make no API call and so produce no prompt-log entries.
 - **Fair information only.** Each prompt is built solely from what the seat
   legitimately knows: its own `*_known` slots and opponent slots it has peeked
   (tracked in `state["_lmem"][seat]`, pruned when a remembered card publicly
-  changes). Unknown slots render as `?`. Public facts (discard top, deck count,
-  whose turn, recent public log events) are always included.
+  changes). Unknown slots render as `?`, and a **known-card total** (the sum over
+  the slots this seat knows) is included so the model isn't left to add them up.
+  Public facts (discard top, deck count, whose turn, recent public log events) are
+  always included.
+- **Reason-before-move.** Every prompt asks the model to lead its JSON reply with a
+  short `"reason"` so it reasons before committing; the rationale is captured in the
+  prompt log / JSONL but is best-effort and never affects move validation.
 - **A single model drives moves *and* specials** through that one conversation —
   it picks peek/switch targets and the K look-then-switch decision via focused
   follow-up prompts in the same chat.
@@ -128,7 +145,12 @@ decisions make no API call and so produce no prompt-log entries.
 
 - `game/llm_client.py` accumulates calls / tokens / cost for the run; `simulate.py`
   and `tournament.py` print a one-line summary at the end
-  (`llm_client.summary_line()`).
+  (`llm_client.summary_line()`). A multi-model run (e.g. Kimi + Haiku in one
+  tournament) also gets a **per-model** breakdown via `llm_client.summary_by_model()`.
+- Requests cap `max_tokens` low (replies are tiny JSON moves). OpenRouter
+  credit-checks the *requested* max, not the actual output, so a model's huge
+  default would trigger premature `402`s when little credit remains; the cap lets a
+  run use nearly its full budget without changing real cost.
 - `game/llm_client.py` retries transient transport errors and HTTP 429/5xx with a
   short exponential backoff (1s, 2s, 4s; honoring `Retry-After`) before giving up —
   this smooths over free-tier rate limits. Hard 4xx (400 bad model, 401 bad key,

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cambio Round-Robin Tournament</title><style>
+:root { --bg:#0f1117; --panel:#1a1d27; --ink:#e6e8ee; --muted:#9aa0ad;
+        --smart:#4f9dff; --random:#ff7a59; --tie:#9aa0ad; --accent:#48d597; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+       font:15px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+.wrap { max-width:980px; margin:0 auto; padding:32px 24px 64px; }
+h1 { font-size:26px; margin:0 0 4px; }
+.sub { color:var(--muted); margin:0 0 28px; }
+h2 { font-size:18px; margin:34px 0 14px; border-bottom:1px solid #2a2e3a; padding-bottom:8px; }
+.strategy-box { border-left:4px solid var(--smart); margin:0 0 26px; }
+.strategy-box .strat-name { font-size:18px; font-weight:600; margin-bottom:4px; }
+.strategy-box .strat-name .vs { color:var(--muted); font-weight:400; font-size:14px; }
+.strategy-box ul { margin:10px 0 2px 20px; display:flex; flex-direction:column; gap:7px; }
+.strategy-box li { color:#cdd3df; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; }
+.card { background:var(--panel); border:1px solid #262a36; border-radius:12px; padding:16px 18px; }
+.card .label { color:var(--muted); font-size:13px; }
+.card .value { font-size:28px; font-weight:600; margin-top:4px; }
+.card .value small { font-size:14px; color:var(--muted); font-weight:400; }
+.panel { background:var(--panel); border:1px solid #262a36; border-radius:12px; padding:18px 20px; }
+.bar-row { display:flex; align-items:center; gap:12px; margin:8px 0; }
+.bar-label { width:160px; color:var(--muted); font-size:13px; text-align:right; }
+.bar-track { flex:1; background:#11141c; border-radius:6px; overflow:hidden; height:26px; }
+.bar-fill { height:100%; display:flex; align-items:center; justify-content:flex-end;
+            padding:0 8px; color:#08111d; font-size:12px; font-weight:600; white-space:nowrap; }
+table { width:100%; border-collapse:collapse; margin-top:6px; }
+td,th { text-align:left; padding:6px 8px; border-bottom:1px solid #262a36; font-size:14px; }
+th { color:var(--muted); font-weight:500; }
+
+/* inline-SVG charts */
+.chart-svg { max-width:100%; height:auto; display:block; }
+.chart-svg text { fill:var(--muted); font:11px -apple-system,Segoe UI,Roboto,sans-serif; }
+.chart-svg .axis line { stroke:#2a2e3a; stroke-width:1; }
+.chart-svg .axis-anchor { stroke:#3a4150; stroke-width:1; stroke-dasharray:3 3; }
+.chart-svg .tick.name { fill:var(--ink); }
+.chart-svg .donut-center { fill:var(--ink); font-size:24px; font-weight:600; }
+.chart-svg .donut-sub { fill:var(--muted); font-size:11px; }
+.chart-svg .chart-empty { fill:var(--muted); font-size:13px; }
+.chart-row { display:flex; gap:24px; align-items:center; flex-wrap:wrap; }
+.chart-row .chart { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:8px; }
+.chart-row .bars { flex:1 1 300px; min-width:260px; }
+.chart-legend { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12px; color:var(--muted); }
+.chart-legend .lg-item { display:inline-flex; align-items:center; gap:6px; }
+.chart-legend .lg-swatch { width:10px; height:10px; border-radius:3px; display:inline-block; }
+
+/* interesting-results highlights */
+.highlights { display:flex; flex-direction:column; gap:10px; }
+.highlight { display:flex; gap:12px; align-items:flex-start; background:#11141c;
+             border-left:4px solid var(--muted); border-radius:8px; padding:10px 14px; }
+.highlight.good { border-left-color:var(--accent); }
+.highlight.bad, .highlight.warn { border-left-color:var(--random); }
+.highlight.neutral { border-left-color:var(--smart); }
+.highlight .h-icon { font-size:20px; line-height:1.3; }
+.highlight .h-body { display:flex; flex-direction:column; gap:2px; }
+.highlight .h-title { font-weight:600; }
+.highlight .h-text { color:#cdd3df; font-size:14px; }
+
+.matrix { border-collapse:collapse; font-size:12px; }
+.matrix th, .matrix td { border:1px solid #11141c; padding:5px 7px; text-align:center;
+                         white-space:nowrap; }
+.matrix th { color:var(--muted); font-weight:500; }
+.matrix th.row-head { text-align:right; color:var(--ink); font-weight:500; }
+.matrix td.diag { background:#11141c; }
+.matrix-wrap { overflow-x:auto; }
+.legend { display:flex; align-items:center; gap:8px; color:var(--muted);
+          font-size:12px; margin-top:12px; }
+.legend .swatch { width:120px; height:12px; border-radius:3px;
+  background:linear-gradient(90deg,#c2491f,#2a2e3a,#4f9dff); }
+.rank-bar-track { background:#11141c; border-radius:5px; overflow:hidden; height:18px;
+                  width:160px; }
+.rank-bar-fill { height:100%; background:var(--smart); border-radius:5px; }
+td.num { text-align:right; font-variant-numeric:tabular-nums; }
+</style></head>
+<body><div class="wrap">
+  <h1>Cambio Round-Robin Tournament</h1>
+  <p class="sub">6 entrants · 4 games/pairing · 60 games · seed=1 · max_turns=1000 · generated 2026-06-16 10:42:45</p>
+
+  <div class="cards"><div class="card"><div class="label">Entrants</div><div class="value">6</div></div><div class="card"><div class="label">Games / pairing</div><div class="value">4</div></div><div class="card"><div class="label">Total games</div><div class="value">60</div></div><div class="card"><div class="label">Tie rate</div><div class="value">3.3%</div></div><div class="card"><div class="label">Avg game length</div><div class="value">17.4 <small>turns</small></div></div><div class="card"><div class="label">Throughput</div><div class="value">0 <small>games/sec</small></div></div></div>
+
+  <h2>Rankings</h2>
+  <div class="panel">
+    <p class="sub" style="margin:0 0 14px">Elo-style rating relative to the 1500 anchor
+    (coin-flip play). Bars right of the line beat the field; left of it trail it.</p>
+    <svg viewBox="0 0 720 176" width="720" height="176" class="chart-svg" role="img"><line x1="408.0" y1="10" x2="408.0" y2="166" class="axis-anchor"/><text x="408.0" y="8" text-anchor="middle" class="tick">1500</text><text x="142" y="23.0" text-anchor="end" dominant-baseline="central" class="tick name">The Cartographer</text><rect x="408.0" y="15.2" width="258.0" height="15.6" rx="3" fill="var(--smart)"><title>The Cartographer: 1721 (+221 vs 1500)</title></rect><text x="672" y="23.0" text-anchor="start" dominant-baseline="central" class="tick">1721</text><text x="142" y="49.0" text-anchor="end" dominant-baseline="central" class="tick name">Greedy Minimizer</text><rect x="408.0" y="41.2" width="180.0" height="15.6" rx="3" fill="var(--smart)"><title>Greedy Minimizer: 1654 (+154 vs 1500)</title></rect><text x="672" y="49.0" text-anchor="start" dominant-baseline="central" class="tick">1654</text><text x="142" y="75.0" text-anchor="end" dominant-baseline="central" class="tick name">Claude Haiku (LLM)</text><rect x="408.0" y="67.2" width="165.0" height="15.6" rx="3" fill="var(--smart)"><title>Claude Haiku (LLM): 1641 (+141 vs 1500)</title></rect><text x="672" y="75.0" text-anchor="start" dominant-baseline="central" class="tick">1641</text><text x="142" y="101.0" text-anchor="end" dominant-baseline="central" class="tick name">Kimi K2 (LLM)</text><rect x="408.0" y="93.2" width="135.2" height="15.6" rx="3" fill="var(--smart)"><title>Kimi K2 (LLM): 1616 (+116 vs 1500)</title></rect><text x="672" y="101.0" text-anchor="start" dominant-baseline="central" class="tick">1616</text><text x="142" y="127.0" text-anchor="end" dominant-baseline="central" class="tick name">Random</text><rect x="408.0" y="119.2" width="0.0" height="15.6" rx="3" fill="var(--smart)"><title>Random: 1500 (+0 vs 1500)</title></rect><text x="672" y="127.0" text-anchor="start" dominant-baseline="central" class="tick">1500</text><text x="142" y="153.0" text-anchor="end" dominant-baseline="central" class="tick name">Selective Snapper</text><rect x="289.1" y="145.2" width="118.9" height="15.6" rx="3" fill="var(--random)"><title>Selective Snapper: 1398 (-102 vs 1500)</title></rect><text x="672" y="153.0" text-anchor="start" dominant-baseline="central" class="tick">1398</text></svg>
+    <table><thead><tr><th>#</th><th>Strategy</th><th>Rating</th><th></th><th>Win%</th><th>W–L–T</th><th>Games</th></tr></thead><tbody><tr><td class="num">1</td><td>The Cartographer</td><td class="num">1721</td><td><div class="rank-bar-track"><div class="rank-bar-fill" style="width:100.0%"></div></div></td><td class="num">75.0%</td><td class="num">15–5–0</td><td class="num">20</td></tr><tr><td class="num">2</td><td>Greedy Minimizer</td><td class="num">1654</td><td><div class="rank-bar-track"><div class="rank-bar-fill" style="width:81.0%"></div></div></td><td class="num">60.0%</td><td class="num">12–7–1</td><td class="num">20</td></tr><tr><td class="num">3</td><td>Claude Haiku (LLM)</td><td class="num">1641</td><td><div class="rank-bar-track"><div class="rank-bar-fill" style="width:77.3%"></div></div></td><td class="num">60.0%</td><td class="num">12–8–0</td><td class="num">20</td></tr><tr><td class="num">4</td><td>Kimi K2 (LLM)</td><td class="num">1616</td><td><div class="rank-bar-track"><div class="rank-bar-fill" style="width:70.0%"></div></div></td><td class="num">50.0%</td><td class="num">10–8–2</td><td class="num">20</td></tr><tr><td class="num">5</td><td>Random</td><td class="num">1500</td><td><div class="rank-bar-track"><div class="rank-bar-fill" style="width:37.0%"></div></div></td><td class="num">30.0%</td><td class="num">6–13–1</td><td class="num">20</td></tr><tr><td class="num">6</td><td>Selective Snapper</td><td class="num">1398</td><td><div class="rank-bar-track"><div class="rank-bar-fill" style="width:8.0%"></div></div></td><td class="num">15.0%</td><td class="num">3–17–0</td><td class="num">20</td></tr></tbody></table>
+  </div>
+
+  <h2>How each strategy plays</h2>
+  <div class="panel">
+    <p class="sub" style="margin:0 0 18px">Every entrant's playbook, in rank order —
+    how it draws, swaps, snaps, uses card powers, and decides to call Cambio.</p>
+    <div class="strategy-box" style="padding-left:14px"><div class="strat-name">1. The Cartographer <span class="vs">· rated 1721</span></div><ul><li>Spends 7/8/9/10 on their peeks to map both hands before committing — discards them for the power even when a small swap is available.</li><li>Builds a memory of the opponent&#x27;s cards and only commits to Cambio once it has peeked enough of them to trust its read.</li><li>K/J-Q switch on gains; keeps red Kings; gambles only draws ≤5.</li><li>Calls Cambio at an estimated total ≤12 with a lead — or earlier if its own total is already tiny.</li></ul></div><div class="strategy-box" style="padding-left:14px"><div class="strat-name">2. Greedy Minimizer <span class="vs">· rated 1654</span></div><ul><li>Snaps any known card the instant its rank matches the discard pile.</li><li>Draws from the discard pile only when its top card is lower than the highest card it knows; otherwise draws from the deck.</li><li>Replaces its highest known card when the draw is lower; if the draw is its new highest but 6 or lower, gambles it onto an unknown card; otherwise discards the draw and uses its power.</li><li>Calls Cambio once all four cards are known and their total is 8 or less.</li></ul></div><div class="strategy-box" style="padding-left:14px"><div class="strat-name">3. Claude Haiku (LLM) <span class="vs">· rated 1641</span></div><ul><li>An LLM (via OpenRouter) is given only the rules and the cards it legitimately knows, then asked to choose each move — no hard-coded Cambio tactics.</li><li>One running conversation per game: it is told which seat it is and who moves first, then each turn&#x27;s fair-information state as the game unfolds.</li><li>Tracks its own peeks across turns; snaps use a built-in heuristic by default to keep API cost down.</li><li>On any API error or illegal reply it falls back to the Greedy Minimizer (announced in the log).</li></ul></div><div class="strategy-box" style="padding-left:14px"><div class="strat-name">4. Kimi K2 (LLM) <span class="vs">· rated 1616</span></div><ul><li>An LLM (via OpenRouter) is given only the rules and the cards it legitimately knows, then asked to choose each move — no hard-coded Cambio tactics.</li><li>One running conversation per game: it is told which seat it is and who moves first, then each turn&#x27;s fair-information state as the game unfolds.</li><li>Tracks its own peeks across turns; snaps use a built-in heuristic by default to keep API cost down.</li><li>On any API error or illegal reply it falls back to the Greedy Minimizer (announced in the log).</li></ul></div><div class="strategy-box" style="padding-left:14px"><div class="strat-name">5. Random <span class="vs">· rated 1500</span></div><ul><li>Baseline coin-flip play: calls Cambio about 8% of the time; otherwise usually grabs a discard top worth 3 or less, else draws from the deck.</li><li>Swaps the drawn card into a random slot, except a high card (10+) it tends to discard.</li><li>Snaps each eligible matching card about 70% of the time; fires every power on a random target.</li></ul></div><div class="strategy-box" style="padding-left:14px"><div class="strat-name">6. Selective Snapper <span class="vs">· rated 1398</span></div><ul><li>Only snaps high cards (value 7 or above) — deliberately keeps low and negative cards (like red Kings, worth −1) in hand.</li><li>Draws from the discard pile when its top beats the highest card it knows.</li><li>Replaces its highest known card when the draw is lower; gambles a drawn card 6 or lower onto an unknown slot; otherwise discards and uses the power.</li><li>Calls Cambio once all four cards are known and their total is 8 or less.</li></ul></div>
+  </div>
+
+  <h2>Head-to-head win rates</h2>
+  <div class="panel">
+    <p class="sub" style="margin:0 0 14px">Each cell is the row strategy's win share
+    against the column strategy (ties = ½). Columns are numbered in the same rank
+    order as the rows; hover a cell for the raw W–L–T.</p>
+    <div class="matrix-wrap"><table class="matrix"><thead><tr><th class="row-head"></th><th title="The Cartographer">1</th><th title="Greedy Minimizer">2</th><th title="Claude Haiku (LLM)">3</th><th title="Kimi K2 (LLM)">4</th><th title="Random">5</th><th title="Selective Snapper">6</th></tr></thead><tbody><tr><th class="row-head">1. The Cartographer</th><td class="diag"></td><td style="background:rgb(60,102,156)" title="The Cartographer vs Greedy Minimizer: 3–1–0">75</td><td style="background:rgb(42,46,58)" title="The Cartographer vs Claude Haiku (LLM): 2–2–0">50</td><td style="background:rgb(42,46,58)" title="The Cartographer vs Kimi K2 (LLM): 2–2–0">50</td><td style="background:rgb(79,157,255)" title="The Cartographer vs Random: 4–0–0">100</td><td style="background:rgb(79,157,255)" title="The Cartographer vs Selective Snapper: 4–0–0">100</td></tr><tr><th class="row-head">2. Greedy Minimizer</th><td style="background:rgb(148,84,74)" title="Greedy Minimizer vs The Cartographer: 1–3–0">25</td><td class="diag"></td><td style="background:rgb(60,102,156)" title="Greedy Minimizer vs Claude Haiku (LLM): 3–1–0">75</td><td style="background:rgb(70,129,206)" title="Greedy Minimizer vs Kimi K2 (LLM): 3–0–1">88</td><td style="background:rgb(42,46,58)" title="Greedy Minimizer vs Random: 2–2–0">50</td><td style="background:rgb(60,102,156)" title="Greedy Minimizer vs Selective Snapper: 3–1–0">75</td></tr><tr><th class="row-head">3. Claude Haiku (LLM)</th><td style="background:rgb(42,46,58)" title="Claude Haiku (LLM) vs The Cartographer: 2–2–0">50</td><td style="background:rgb(148,84,74)" title="Claude Haiku (LLM) vs Greedy Minimizer: 1–3–0">25</td><td class="diag"></td><td style="background:rgb(42,46,58)" title="Claude Haiku (LLM) vs Kimi K2 (LLM): 2–2–0">50</td><td style="background:rgb(60,102,156)" title="Claude Haiku (LLM) vs Random: 3–1–0">75</td><td style="background:rgb(79,157,255)" title="Claude Haiku (LLM) vs Selective Snapper: 4–0–0">100</td></tr><tr><th class="row-head">4. Kimi K2 (LLM)</th><td style="background:rgb(42,46,58)" title="Kimi K2 (LLM) vs The Cartographer: 2–2–0">50</td><td style="background:rgb(202,103,81)" title="Kimi K2 (LLM) vs Greedy Minimizer: 0–3–1">12</td><td style="background:rgb(42,46,58)" title="Kimi K2 (LLM) vs Claude Haiku (LLM): 2–2–0">50</td><td class="diag"></td><td style="background:rgb(51,74,107)" title="Kimi K2 (LLM) vs Random: 2–1–1">62</td><td style="background:rgb(79,157,255)" title="Kimi K2 (LLM) vs Selective Snapper: 4–0–0">100</td></tr><tr><th class="row-head">5. Random</th><td style="background:rgb(255,122,89)" title="Random vs The Cartographer: 0–4–0">0</td><td style="background:rgb(42,46,58)" title="Random vs Greedy Minimizer: 2–2–0">50</td><td style="background:rgb(148,84,74)" title="Random vs Claude Haiku (LLM): 1–3–0">25</td><td style="background:rgb(95,65,66)" title="Random vs Kimi K2 (LLM): 1–2–1">38</td><td class="diag"></td><td style="background:rgb(42,46,58)" title="Random vs Selective Snapper: 2–2–0">50</td></tr><tr><th class="row-head">6. Selective Snapper</th><td style="background:rgb(255,122,89)" title="Selective Snapper vs The Cartographer: 0–4–0">0</td><td style="background:rgb(148,84,74)" title="Selective Snapper vs Greedy Minimizer: 1–3–0">25</td><td style="background:rgb(255,122,89)" title="Selective Snapper vs Claude Haiku (LLM): 0–4–0">0</td><td style="background:rgb(255,122,89)" title="Selective Snapper vs Kimi K2 (LLM): 0–4–0">0</td><td style="background:rgb(42,46,58)" title="Selective Snapper vs Random: 2–2–0">50</td><td class="diag"></td></tr></tbody></table></div><div class="legend"><span>opponent win share for the row strategy</span><span class="swatch"></span><span>0% · 50% · 100%</span></div>
+  </div>
+
+  <h2>Methodology</h2>
+  <div class="panel">
+    <ul>
+      <li><b>Format.</b> Every pair of strategies plays 4 games. Sides are
+      balanced — each strategy starts half its games and sits in each physical seat
+      half the time — so first-move bias cancels out.</li>
+      <li><b>Outcome.</b> Lowest hand sum wins (Cambio caller takes a +5 penalty if it
+      isn't lowest). Equal sums are broken in favour of the hand holding more cards;
+      a genuine tie (equal sum <b>and</b> equal card count) counts as half a win to
+      each side. Only win/loss/tie is recorded; <b>margin is ignored</b>.</li>
+      <li><b>Rating.</b> A Bradley-Terry model is fit to all pairwise results at once
+      (Hunter 2004 MM iteration), then mapped to an Elo-style scale via
+      rating = anchor + 400·log<sub>10</sub>(strength ratio). Random is fixed at 1500 as the calibration floor; every other rating reads as points above coin-flip play. A small
+      symmetric prior keeps every rating finite. A 400-point gap ≈ a 10:1 expected
+      win ratio.</li>
+    </ul></div>
+
+  <h2>Interesting results</h2>
+  <div class="panel highlights"><div class="highlight good"><div class="h-icon">🏆</div><div class="h-body"><div class="h-title">Champion</div><div class="h-text">The Cartographer tops the field at 1721 Elo (75.0% wins across 20 games). Random anchors the scale at 1500 (rank 5/6).</div></div></div><div class="highlight bad"><div class="h-icon">🔻</div><div class="h-body"><div class="h-title">Cellar dweller</div><div class="h-text">Selective Snapper sits last at 1398 Elo (15.0% wins).</div></div></div><div class="highlight neutral"><div class="h-icon">📏</div><div class="h-body"><div class="h-title">Skill spread</div><div class="h-text">322 Elo separates first from last (~6:1 expected wins). A wide ladder — clear separation between the strategies.</div></div></div><div class="highlight warn"><div class="h-icon">💥</div><div class="h-body"><div class="h-title">Most dominant matchup</div><div class="h-text">The Cartographer owns Selective Snapper, winning 100% of their games (4–0–0).</div></div></div><div class="highlight neutral"><div class="h-icon">✅</div><div class="h-body"><div class="h-title">Consistent ranking</div><div class="h-text">No upsets — every head-to-head agrees with the overall ranking order.</div></div></div></div>
+</div></body></html>

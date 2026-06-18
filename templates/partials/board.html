@@ -373,6 +373,7 @@
               <span class="llm-move">→ {{ e.parsed | tojson }}</span>
             {% endif %}
           </div>
+          {% if e.reason %}<div class="llm-label">Reasoning</div><pre>{{ e.reason }}</pre>{% endif %}
           {% if e.state %}<div class="llm-label">Game state (GSi)</div><pre>{{ e.state }}</pre>{% endif %}
           <div class="llm-label">Prompt (Pi)</div><pre>{{ e.prompt }}</pre>
           {% if e.response %}<div class="llm-label">Response (Mi)</div><pre>{{ e.response }}</pre>{% endif %}

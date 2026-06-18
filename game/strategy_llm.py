@@ -106,7 +106,10 @@ cards, bad for a red King since it lowers your total to keep it).
 Scoring: lowest total wins. The player who called Cambio gets +5 penalty if they
 do NOT have the strictly lowest total, so only call when you are confident.
 
-Respond to every prompt with ONLY a single JSON object — no prose, no markdown.
+Think before you act. Respond to every prompt with ONLY a single JSON object (no
+markdown, no text around it) whose FIRST key is "reason": one short sentence
+explaining your choice (e.g. weigh your hand total, the discard top, what you know
+of the opponent). Put "reason" first, then the action keys the prompt asks for.
 """
 
 
@@ -195,6 +198,17 @@ class LLMStrategy:
             else:
                 opp_slots.append(f"[{i}]=?")
 
+        # Running total of the cards this seat legitimately knows — pure arithmetic
+        # the model often botches, so we hand it over rather than have it recompute.
+        n_cards = sum(1 for c in hand if c is not None)
+        known_vals = [card_value(c) for i, c in enumerate(hand)
+                      if c is not None and i < len(known) and known[i]]
+        n_known = len(known_vals)
+        n_unknown = n_cards - n_known
+        known_total = (
+            f"{sum(known_vals)} ({n_known} of {n_cards} cards known"
+            f"{f'; {n_unknown} still unknown' if n_unknown else ''})")
+
         discard = state["discard_pile"]
         top = _card_str(discard[-1]) if discard else "none"
         cambio = state["cambio_called_by"]
@@ -203,7 +217,8 @@ class LLMStrategy:
         elif cambio.startswith(seat):
             cstat = "YOU called Cambio"
         else:
-            cstat = "OPPONENT ended the round — this is your LAST turn"
+            cstat = ("OPPONENT ended the round — this is your LAST turn, so play to "
+                     "minimize your hand total now")
 
         new_log = state["log"][conv["log_shown"]:]
         conv["log_shown"] = len(state["log"])
@@ -211,6 +226,7 @@ class LLMStrategy:
 
         return (
             f"Your hand:     {' '.join(my_slots)}\n"
+            f"Your known total: {known_total}\n"
             f"Opponent hand: {' '.join(opp_slots)}  (? = not yet seen)\n"
             f"Discard top:   {top}\n"
             f"Deck left:     {len(state['deck'])} cards\n"
@@ -239,7 +255,15 @@ class LLMStrategy:
             conv["messages"].append({"role": "user", "content": content})
             try:
                 self.call_count += 1
-                reply = llm_client.chat(conv["messages"], model=self.model)
+                # Don't request response_format JSON mode: some models have no
+                # provider that supports it (e.g. moonshotai/kimi-k2 is served by
+                # Novita, which 400-rejects the flag, and require_parameters routing
+                # 404s — no Kimi provider offers it). The prompt already demands a
+                # JSON object, `_extract_json` parses leniently (tolerates fences/
+                # prose), and the retry below nudges stragglers, so the flag only
+                # added a provider-compatibility failure mode for no real benefit.
+                reply = llm_client.chat(conv["messages"], model=self.model,
+                                        force_json=False)
             except llm_client.LLMError as e:
                 self._record(state, seat, kind, gsi, prompt, content,
                              response=None, parsed=None, error=f"API error: {e}")
@@ -247,10 +271,13 @@ class LLMStrategy:
                 return None
             conv["messages"].append({"role": "assistant", "content": reply})
             obj = _extract_json(reply)
+            # Best-effort: the model's own rationale, captured for the log only —
+            # never part of validation, so a missing reason can't fail a move.
+            reason = obj.get("reason") if isinstance(obj, dict) else None
             ok, result = validate(obj) if obj is not None else (False, "not JSON")
             self._record(state, seat, kind, gsi, prompt, content, response=reply,
                          parsed=(result if ok else None),
-                         error=(None if ok else result))
+                         error=(None if ok else result), reason=reason)
             if ok:
                 return result
             last_reason = result
@@ -263,7 +290,7 @@ class LLMStrategy:
 
     # ── Prompt/response trace (in-state for the UI + JSONL on disk) ────────────
     def _record(self, state, seat, kind, gsi, prompt, full_prompt, *,
-                response, parsed, error):
+                response, parsed, error, reason=None):
         """Append one prompt/response entry to the live trace and the log file."""
         trace = state.setdefault("llm_trace", [])
         entry = {
@@ -276,6 +303,7 @@ class LLMStrategy:
             "full_prompt": full_prompt,  # exactly what was sent to the API
             "response": response,    # Mi — raw model reply (None on API error)
             "parsed": parsed,        # the validated move (None if illegal/failed)
+            "reason": reason,        # the model's own one-line rationale (or None)
             "error": error,          # reason when invalid / API error, else None
         }
         trace.append(entry)
@@ -314,13 +342,13 @@ class LLMStrategy:
     def _draw_phase(self, state, seat):
         can_cambio = state["cambio_called_by"] is None
         has_discard = bool(state["discard_pile"])
-        opts = ['{"action": "draw_deck"}']
+        opts = ['{"reason": "...", "action": "draw_deck"}']
         if has_discard:
-            opts.append('{"action": "draw_discard"}  (take the discard top)')
+            opts.append('{"reason": "...", "action": "draw_discard"}  (take the discard top)')
         if can_cambio:
-            opts.append('{"action": "call_cambio"}  (end the round)')
-        prompt = ("It is your turn (draw phase). Choose ONE:\n  - "
-                  + "\n  - ".join(opts))
+            opts.append('{"reason": "...", "action": "call_cambio"}  (end the round)')
+        prompt = ("It is your turn (draw phase). Choose ONE (always lead with "
+                  '"reason"):\n  - ' + "\n  - ".join(opts))
 
         def validate(obj):
             a = obj.get("action") if isinstance(obj, dict) else None
@@ -341,11 +369,11 @@ class LLMStrategy:
         hand = state[f"{seat}_hand"]
         held = [i for i, c in enumerate(hand) if c is not None]
         prompt = (
-            f"You drew {_card_str(drawn)}. Choose ONE:\n"
-            f'  - {{"action": "swap", "hand_index": i}}  where i is one of your '
-            f"non-empty positions {held} (replaces that card, discarding it)\n"
-            f'  - {{"action": "discard_drawn"}}  (discard the drawn card; if it is '
-            f"7/8/9/10/J/Q/K this fires its power)")
+            f"You drew {_card_str(drawn)}. Choose ONE (always lead with \"reason\"):\n"
+            f'  - {{"reason": "...", "action": "swap", "hand_index": i}}  where i is '
+            f"one of your non-empty positions {held} (replaces that card, discarding it)\n"
+            f'  - {{"reason": "...", "action": "discard_drawn"}}  (discard the drawn '
+            f"card; if it is 7/8/9/10/J/Q/K this fires its power)")
 
         def validate(obj):
             a = obj.get("action") if isinstance(obj, dict) else None
@@ -374,7 +402,7 @@ class LLMStrategy:
             f"You may SNAP your position {hand_index} ({_card_str(card)}) — its "
             f"rank matches the discard top. Snapping removes it from your hand "
             f"(good for positive cards; bad for a red King worth -1). "
-            f'Reply {{"snap": true}} or {{"snap": false}}.')
+            f'Reply {{"reason": "...", "snap": true}} or {{"reason": "...", "snap": false}}.')
 
         def validate(obj):
             if isinstance(obj, dict) and isinstance(obj.get("snap"), bool):
@@ -418,7 +446,7 @@ class LLMStrategy:
         if not unknown:
             return
         prompt = (f"You discarded a 7/8. Peek at ONE of your own face-down cards: "
-                  f"{unknown}. Reply {{\"index\": i}}.")
+                  f"{unknown}. Reply {{\"reason\": \"...\", \"index\": i}}.")
         idx = self._pick_index(state, seat, prompt, unknown, kind="peek_own")
         if idx is None:
             self._fallback.apply_special(state, seat, "peek_own")
@@ -438,7 +466,7 @@ class LLMStrategy:
         if not valid:
             return
         prompt = (f"You discarded a 9/10. Peek at ONE opponent card: {valid}. "
-                  f"Reply {{\"index\": i}}.")
+                  f"Reply {{\"reason\": \"...\", \"index\": i}}.")
         idx = self._pick_index(state, seat, prompt, valid, kind="peek_opponent")
         if idx is None:
             self._fallback.apply_special(state, seat, "peek_opponent")
@@ -467,8 +495,8 @@ class LLMStrategy:
         prompt = (
             f"You discarded a J/Q (blind switch). Swap one of YOUR cards "
             f"{me_valid} with one OPPONENT card {opp_valid}, sight unseen — useful "
-            f"to dump a known-high card. Reply {{\"own\": i, \"opp\": j}} to switch, "
-            f"or {{\"switch\": false}} to decline.")
+            f"to dump a known-high card. Reply {{\"reason\": \"...\", \"own\": i, "
+            f"\"opp\": j}} to switch, or {{\"reason\": \"...\", \"switch\": false}} to decline.")
 
         def validate(obj):
             if not isinstance(obj, dict):
@@ -514,7 +542,7 @@ class LLMStrategy:
         prompt = (
             f"You discarded a K (look then optionally switch). Pick one of YOUR "
             f"cards {me_valid} and one OPPONENT card {opp_valid} to look at. "
-            f"Reply {{\"own\": i, \"opp\": j}}.")
+            f"Reply {{\"reason\": \"...\", \"own\": i, \"opp\": j}}.")
 
         def validate(obj):
             if isinstance(obj, dict) and obj.get("own") in me_valid and obj.get("opp") in opp_valid:
@@ -536,7 +564,8 @@ class LLMStrategy:
             f"You looked: your [{mi}]={_card_str(my_card)}, opponent "
             f"[{oi}]={_card_str(opp_card)}. Switch them? (Switching is good only if "
             f"the opponent's card is lower than yours.) "
-            f"Reply {{\"switch\": true}} or {{\"switch\": false}}.")
+            f"Reply {{\"reason\": \"...\", \"switch\": true}} or "
+            f"{{\"reason\": \"...\", \"switch\": false}}.")
 
         def validate_decide(obj):
             if isinstance(obj, dict) and isinstance(obj.get("switch"), bool):

@@ -20,10 +20,18 @@ ceiling can't.
 | `-o, --output` | `tournament.html` | path for the HTML report |
 | `--seed` | none | random seed for reproducible runs |
 | `--no-random` | off | exclude the random baseline (profiles only) |
+| `--strategies` | none | comma-separated entrant keys to use as the field instead of all of them (e.g. `cartographer,greedy,random`) |
 | `--max-turns` | `1000` | safety cap on turns per game |
 | `--bootstrap N` | `0` (off) | add bootstrap confidence intervals to every rating from `N` resampled replicates (e.g. `2000`) |
 | `--ci-level` | `0.95` | confidence level for `--bootstrap` intervals |
 | `--quiet` | off | suppress per-pairing progress |
+| `--enable-llm` | off | add the generic OpenRouter LLM entrant (`--llm-model`, `--llm-snaps`) |
+| `--enable-kimi` / `--enable-haiku` | off | enter the named Kimi K2 / Claude Haiku models as distinct competitors |
+
+LLM entrants are opt-in, slow, and metered (each turn is a live API call needing
+`OPENROUTER_API_KEY`); cost scales with `-k` × field size, so keep `-k` tiny. The named
+models come from `game/llm_opponents.py` and are env-overridable
+(`CAMBIO_KIMI_MODEL` / `CAMBIO_HAIKU_MODEL`).
 
 The output is a standalone HTML report plus a console rankings table, via
 [`game/tournament_report.py`](../game/tournament_report.py). The report has:
