@@ -384,6 +384,35 @@ def test_pick_card_on_none_slot_returns_state():
     assert new_state["special_action"] == {"type": "peek_own", "step": 1, "picks": []}
 
 
+def test_special_actions_with_no_special_in_progress_are_noops():
+    """A stale/double click can send a special-phase action after the special
+    already resolved (special_action is None). These must be safe no-ops, not a
+    500 — otherwise HTMX leaves the board unswapped and the card "won't change"."""
+    base = apply_move(create_initial_state("player"), {"action": "start"})
+    assert base["special_action"] is None
+    for move in (
+        {"action": "pick_card", "owner": "player", "hand_index": 1},
+        {"action": "decide_switch", "do_switch": True},
+        {"action": "skip_special"},
+    ):
+        out = apply_move(base, move)              # must not raise
+        assert out["special_action"] is None
+        assert out["phase"] == base["phase"]      # turn not advanced
+
+
+def test_swap_and_discard_with_no_drawn_card_are_noops():
+    """Double-submitting swap/discard after the draw was already consumed
+    (drawn_card is None) must be a safe no-op, not a crash or a None placed in hand."""
+    base = apply_move(create_initial_state("player"), {"action": "start"})
+    assert base["drawn_card"] is None
+    swapped = apply_move(base, {"action": "swap", "hand_index": 1})
+    assert swapped["player_hand"] == base["player_hand"]
+    assert swapped["phase"] == base["phase"]
+    discarded = apply_move(base, {"action": "discard_drawn"})
+    assert discarded["discard_pile"] == base["discard_pile"]
+    assert discarded["phase"] == base["phase"]
+
+
 def test_pick_card_peek_own_reveals_and_advances_turn():
     state = _special_state("peek_own")
     state["player_hand"][2] = card("8", "♥")
