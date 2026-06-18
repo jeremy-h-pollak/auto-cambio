@@ -22,6 +22,8 @@ ceiling can't.
 | `--no-random` | off | exclude the random baseline (profiles only) |
 | `--strategies` | none | comma-separated entrant keys to use as the field instead of all of them (e.g. `cartographer,greedy,random`) |
 | `--max-turns` | `1000` | safety cap on turns per game |
+| `--bootstrap N` | `0` (off) | add bootstrap confidence intervals to every rating from `N` resampled replicates (e.g. `2000`) |
+| `--ci-level` | `0.95` | confidence level for `--bootstrap` intervals |
 | `--quiet` | off | suppress per-pairing progress |
 | `--enable-llm` | off | add the generic OpenRouter LLM entrant (`--llm-model`, `--llm-snaps`) |
 | `--enable-kimi` / `--enable-haiku` | off | enter the named Kimi K2 / Claude Haiku models as distinct competitors |
@@ -89,6 +91,29 @@ BT_ALPHA      = 0.5     # smoothing: pseudo wins+losses added to each played pai
 
 So the headline number for each strategy is **points above coin-flip-against-random
 (1500)**.
+
+## Confidence intervals (`--bootstrap`)
+
+A single round robin gives one point-estimate Elo per strategy but no sense of how much of
+the ranking is real versus finite-sample noise. `--bootstrap N` adds a confidence band to
+every rating via **`bootstrap_ratings(result, n_boot, ci, seed)`** in
+[`game/tournament.py`](../game/tournament.py):
+
+- It's the **nonparametric pairwise bootstrap**. Each of the `N` replicates resamples every
+  pairing's `k` recorded games with replacement — equivalently, redraws `(a_wins, b_wins,
+  ties)` from a multinomial with the observed proportions — then refits Bradley-Terry and
+  re-anchors via `to_elo`. **No games are replayed**; only the cheap matrix fit re-runs, so
+  even `N = 2000` is fast.
+- The band is the **percentile spread** of each entrant's rating across replicates (the
+  `(1 ± ci)/2` quantiles), returned as `{index: {"lo", "hi", "median", "samples"}}`.
+- With Random anchored it is pinned to exactly 1500 in every replicate, so **its band is a
+  degenerate `[1500, 1500]`** by construction.
+
+When present, the bands show up as a `95% CI` column in both the console table and the
+report's rankings table, and as **capped whiskers** over each bar in the diverging chart —
+overlapping whiskers mean the gap between two strategies isn't resolved at that game count.
+Use a local `random.Random(seed)` internally, so bootstrapping never perturbs the
+tournament's own seeded game stream.
 
 ## Reproducibility & verification
 

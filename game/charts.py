@@ -170,18 +170,29 @@ def diverging_gap_bar(rows, *, anchor=1500.0, width=720, row_height=26,
                       pad_left=150, pad_right=54, pad_top=10, pad_bottom=10):
     """Ratings as bars diverging from an `anchor` (default 1500 = coin-flip).
 
-    rows: list of (name, rating). Bars extend right of the anchor (above it,
-    --smart) or left (below it, --random); useful for reading the skill spread.
+    rows: list of (name, rating) or (name, rating, (lo, hi)). Bars extend right of
+    the anchor (above it, --smart) or left (below it, --random); useful for reading
+    the skill spread. When a row carries a `(lo, hi)` confidence band, a thin
+    capped whisker is drawn over its bar so overlapping intervals are visible.
     """
     if not rows:
         return _empty(width, 80)
 
-    ratings = [r for _, r in rows]
-    max_dev = max((abs(r - anchor) for r in ratings), default=0) or 1.0
+    rows = [(r[0], r[1], r[2] if len(r) > 2 else None) for r in rows]
+    # The axis must span the bars *and* any whisker ends, or whiskers would clip.
+    extents = []
+    for _, rating, band in rows:
+        extents.append(abs(rating - anchor))
+        if band is not None:
+            extents += [abs(band[0] - anchor), abs(band[1] - anchor)]
+    max_dev = max(extents, default=0) or 1.0
     plot_w = width - pad_left - pad_right
     half = plot_w / 2
     zero_x = pad_left + half
     height = pad_top + pad_bottom + row_height * len(rows)
+
+    def _x(value):
+        return zero_x + half * (value - anchor) / max_dev
 
     parts = [
         f'<svg viewBox="0 0 {width} {height}" width="{width}" height="{height}" '
@@ -193,18 +204,34 @@ def diverging_gap_bar(rows, *, anchor=1500.0, width=720, row_height=26,
         f'class="tick">{anchor:.0f}</text>',
     ]
     bar_h = row_height * 0.6
-    for i, (name, rating) in enumerate(rows):
+    for i, (name, rating, band) in enumerate(rows):
         cy = pad_top + i * row_height + row_height / 2
         dev = rating - anchor
         length = half * abs(dev) / max_dev
         color = "var(--smart)" if dev >= 0 else "var(--random)"
         x = zero_x if dev >= 0 else zero_x - length
+        band_title = ""
+        if band is not None:
+            band_title = f" · 95% CI [{band[0]:.0f}, {band[1]:.0f}]"
         parts.append(
             f'<text x="{pad_left - 8}" y="{cy:.1f}" text-anchor="end" '
             f'dominant-baseline="central" class="tick name">{_esc(name)}</text>'
             f'<rect x="{x:.1f}" y="{cy - bar_h / 2:.1f}" width="{length:.1f}" '
             f'height="{bar_h:.1f}" rx="3" fill="{color}">'
-            f'<title>{_esc(name)}: {rating:.0f} ({dev:+.0f} vs {anchor:.0f})</title></rect>'
+            f'<title>{_esc(name)}: {rating:.0f} ({dev:+.0f} vs {anchor:.0f}){band_title}</title></rect>'
+        )
+        if band is not None:
+            lo_x, hi_x = _x(band[0]), _x(band[1])
+            cap = bar_h * 0.4
+            parts.append(
+                f'<g class="ci-whisker" stroke="var(--ink)" stroke-width="1.3" '
+                f'opacity="0.85">'
+                f'<line x1="{lo_x:.1f}" y1="{cy:.1f}" x2="{hi_x:.1f}" y2="{cy:.1f}"/>'
+                f'<line x1="{lo_x:.1f}" y1="{cy - cap:.1f}" x2="{lo_x:.1f}" y2="{cy + cap:.1f}"/>'
+                f'<line x1="{hi_x:.1f}" y1="{cy - cap:.1f}" x2="{hi_x:.1f}" y2="{cy + cap:.1f}"/>'
+                f'</g>'
+            )
+        parts.append(
             f'<text x="{width - pad_right + 6}" y="{cy:.1f}" text-anchor="start" '
             f'dominant-baseline="central" class="tick">{rating:.0f}</text>'
         )

@@ -91,27 +91,33 @@ def _record(result, row, col):
     return (pr.a_wins, pr.b_wins, pr.ties) if row == i else (pr.b_wins, pr.a_wins, pr.ties)
 
 
-def _rankings_table(rows):
+def _rankings_table(rows, cis=None, ci_level=0.95):
     body = []
     ratings = [r["rating"] for r in rows]
     lo, hi = min(ratings), max(ratings)
     span = (hi - lo) or 1.0
+    ci_head = f'<th>{ci_level:.0%} CI</th>' if cis else ''
     for r in rows:
         fill = 8 + 92 * (r["rating"] - lo) / span     # 8–100% so the floor stays visible
         bar = (f'<div class="rank-bar-track"><div class="rank-bar-fill" '
                f'style="width:{fill:.1f}%"></div></div>')
+        ci_cell = ''
+        if cis:
+            c = cis[r["index"]]
+            ci_cell = f'<td class="num">[{c["lo"]:.0f}, {c["hi"]:.0f}]</td>'
         body.append(
             f'<tr><td class="num">{r["rank"]}</td>'
             f'<td>{html.escape(r["name"])}</td>'
             f'<td class="num">{r["rating"]:.0f}</td>'
             f'<td>{bar}</td>'
+            f'{ci_cell}'
             f'<td class="num">{r["win_pct"]:.1f}%</td>'
             f'<td class="num">{r["wins"]}–{r["losses"]}–{r["ties"]}</td>'
             f'<td class="num">{r["games"]:,}</td></tr>'
         )
     return (
         '<table><thead><tr><th>#</th><th>Strategy</th><th>Rating</th><th></th>'
-        '<th>Win%</th><th>W–L–T</th><th>Games</th></tr></thead>'
+        f'{ci_head}<th>Win%</th><th>W–L–T</th><th>Games</th></tr></thead>'
         f'<tbody>{"".join(body)}</tbody></table>'
     )
 
@@ -147,12 +153,13 @@ def _matrix_table(result, rows):
     )
 
 
-def render_tournament_html(result, config=None):
+def render_tournament_html(result, config=None, cis=None):
     config = config or {}
     rows = rankings(result)
     n = len(result.entrants)
     t = result.timing
     anchored = any(e.key == "random" for e in result.entrants)
+    ci_level = config.get("ci_level", 0.95)
 
     cards = "".join([
         _card("Entrants", n),
@@ -163,13 +170,31 @@ def render_tournament_html(result, config=None):
         _card("Throughput", f"{t['games_per_s']:,.0f}", "games/sec"),
     ])
 
-    rating_chart = charts.diverging_gap_bar([(r["name"], r["rating"]) for r in rows])
+    chart_rows = [
+        (r["name"], r["rating"],
+         (cis[r["index"]]["lo"], cis[r["index"]]["hi"]) if cis else None)
+        for r in rows
+    ]
+    rating_chart = charts.diverging_gap_bar(chart_rows)
     highlights = _highlights_section(tournament_highlights(result, rows))
 
     anchor_note = ("Random is fixed at 1500 as the calibration floor; every other "
                    "rating reads as points above coin-flip play."
                    if anchored else
                    "Ratings are centered so the field's mean is 1500.")
+
+    ci_note = ""
+    if cis:
+        n_boot = len(next(iter(cis.values()))["samples"])
+        degenerate = (" Random sits exactly at the 1500 anchor in every replicate, so "
+                      "its band is a degenerate point." if anchored else "")
+        ci_note = (
+            f"<li><b>Confidence intervals.</b> The {ci_level:.0%} bands come from a "
+            f"nonparametric pairwise bootstrap: each of {n_boot:,} replicates resamples "
+            f"every pairing's recorded games with replacement, refits Bradley-Terry, and "
+            f"re-anchors. The band is the percentile spread of each rating across "
+            f"replicates — overlapping bands mean the gap isn't resolved at this game "
+            f"count.{degenerate}</li>")
 
     methodology = f"""
     <ul>
@@ -185,6 +210,7 @@ def render_tournament_html(result, config=None):
       rating = anchor + 400·log<sub>10</sub>(strength ratio). {anchor_note} A small
       symmetric prior keeps every rating finite. A 400-point gap ≈ a 10:1 expected
       win ratio.</li>
+      {ci_note}
     </ul>"""
 
     cfg = html.escape(
@@ -208,7 +234,7 @@ def render_tournament_html(result, config=None):
     <p class="sub" style="margin:0 0 14px">Elo-style rating relative to the 1500 anchor
     (coin-flip play). Bars right of the line beat the field; left of it trail it.</p>
     {rating_chart}
-    {_rankings_table(rows)}
+    {_rankings_table(rows, cis, ci_level)}
   </div>
 
   <h2>How each strategy plays</h2>
@@ -232,7 +258,7 @@ def render_tournament_html(result, config=None):
 </div></body></html>"""
 
 
-def write_tournament_report(result, config, path):
+def write_tournament_report(result, config, path, cis=None):
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(render_tournament_html(result, config))
+        fh.write(render_tournament_html(result, config, cis=cis))
     return result

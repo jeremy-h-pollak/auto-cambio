@@ -9,6 +9,9 @@ from game import strategy as random_strategy
 from game.strategies_advanced import ADVANCED
 from game.tournament import (
     Entrant,
+    PairResult,
+    TournamentResult,
+    bootstrap_ratings,
     bradley_terry,
     entrants,
     rankings,
@@ -153,3 +156,75 @@ def test_rankings_sorted_and_ranked():
     assert [r["rank"] for r in rows] == [1, 2, 3]
     ratings = [r["rating"] for r in rows]
     assert ratings == sorted(ratings, reverse=True)
+
+
+# ── bootstrap_ratings ────────────────────────────────────────────────────────
+
+
+def _synthetic_result(entrants_, pairs):
+    """Minimal TournamentResult carrying just what bootstrap_ratings reads:
+    `entrants` and the `pairs` dict of PairResults."""
+    n = len(entrants_)
+    return TournamentResult(
+        entrants=entrants_, k=0, seed=None, max_turns=0,
+        win=[[0.0] * n for _ in range(n)], ngames=[[0] * n for _ in range(n)],
+        pairs={(p.i, p.j): p for p in pairs},
+        wins=[0] * n, losses=[0] * n, ties=[0] * n, games=[0] * n,
+    )
+
+
+def _lopsided_field(k=100):
+    """Strong (0) sweeps Weak (1) and Random (2); Weak splits evenly with Random."""
+    ents = [
+        Entrant("strong", "Strong", object()),
+        Entrant("weak", "Weak", object()),
+        Entrant("random", "Random", object()),
+    ]
+    pairs = [
+        PairResult(0, 1, a_wins=k, b_wins=0, ties=0, a_starts=k // 2),
+        PairResult(0, 2, a_wins=k, b_wins=0, ties=0, a_starts=k // 2),
+        PairResult(1, 2, a_wins=k // 2, b_wins=k // 2, ties=0, a_starts=k // 2),
+    ]
+    return _synthetic_result(ents, pairs)
+
+
+def test_bootstrap_returns_ordered_band_for_every_entrant():
+    res = run_tournament(_small_field(), 8, seed=1, max_turns=300)
+    cis = bootstrap_ratings(res, n_boot=200, seed=7)
+    assert set(cis) == set(range(len(res.entrants)))
+    for c in cis.values():
+        assert c["lo"] <= c["median"] <= c["hi"]
+        assert len(c["samples"]) == 200
+
+
+def test_bootstrap_anchor_band_is_degenerate():
+    res = _lopsided_field()
+    cis = bootstrap_ratings(res, n_boot=200, seed=7)
+    random_idx = 2
+    assert cis[random_idx]["lo"] == pytest.approx(1500.0)
+    assert cis[random_idx]["hi"] == pytest.approx(1500.0)
+
+
+def test_bootstrap_separates_dominant_from_weak():
+    res = _lopsided_field()
+    cis = bootstrap_ratings(res, n_boot=400, seed=7)
+    # Strong's whole interval sits above Weak's — the gap is resolved.
+    assert cis[0]["lo"] > cis[1]["hi"]
+
+
+def test_bootstrap_is_reproducible():
+    res = _lopsided_field()
+    a = bootstrap_ratings(res, n_boot=150, seed=42)
+    b = bootstrap_ratings(res, n_boot=150, seed=42)
+    for i in a:
+        assert a[i]["lo"] == b[i]["lo"]
+        assert a[i]["hi"] == b[i]["hi"]
+
+
+def test_bootstrap_ci_level_widens_band():
+    res = _lopsided_field()
+    narrow = bootstrap_ratings(res, n_boot=400, ci=0.5, seed=7)
+    wide = bootstrap_ratings(res, n_boot=400, ci=0.99, seed=7)
+    # Weak entrant carries real sampling spread; the 99% band must contain the 50%.
+    assert wide[1]["lo"] <= narrow[1]["lo"]
+    assert wide[1]["hi"] >= narrow[1]["hi"]
