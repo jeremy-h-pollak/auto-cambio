@@ -191,16 +191,30 @@ def render_tournament_html(result, config=None, cis=None):
         ci_note = (
             f"<li><b>Confidence intervals.</b> The {ci_level:.0%} bands come from a "
             f"nonparametric pairwise bootstrap: each of {n_boot:,} replicates resamples "
-            f"every pairing's recorded games with replacement, refits Bradley-Terry, and "
+            f"every pairing's recorded "
+            f"{'deal pairs' if getattr(result, 'duplicate', False) else 'games'} with "
+            f"replacement, refits Bradley-Terry, and "
             f"re-anchors. The band is the percentile spread of each rating across "
             f"replicates — overlapping bands mean the gap isn't resolved at this game "
             f"count.{degenerate}</li>")
+
+    dup_note = ""
+    if getattr(result, "duplicate", False):
+        dup_note = (
+            f" Deck luck is controlled by <b>duplicate deals</b>: the pairing plays "
+            f"{result.n_deals:,} fixed shuffles twice each, with the entrants swapped "
+            f"and the deck order, starting seat and in-game randomness held identical, "
+            f"so each deal is worth the same to both sides. Deal sets are drawn "
+            f"independently per pairing. It is a modest effect — roughly a 10% cut in "
+            f"the variance of a head-to-head estimate, since the two halves diverge as "
+            f"soon as the strategies choose differently and only the opening hands are "
+            f"truly shared.")
 
     methodology = f"""
     <ul>
       <li><b>Format.</b> Every pair of strategies plays {result.k:,} games. Sides are
       balanced — each strategy starts half its games and sits in each physical seat
-      half the time — so first-move bias cancels out.</li>
+      half the time — so first-move bias cancels out.{dup_note}</li>
       <li><b>Outcome.</b> Lowest hand sum wins (Cambio caller takes a +5 penalty if it
       isn't lowest). Equal sums are broken in favour of the hand holding more cards;
       a genuine tie (equal sum <b>and</b> equal card count) counts as half a win to
@@ -214,7 +228,9 @@ def render_tournament_html(result, config=None, cis=None):
     </ul>"""
 
     cfg = html.escape(
-        f"{n} entrants · {result.k:,} games/pairing · {result.total_games:,} games · "
+        f"{n} entrants · {result.k:,} games/pairing"
+        f"{f' ({result.n_deals:,} duplicate deals)' if getattr(result, 'duplicate', False) else ''}"
+        f" · {result.total_games:,} games · "
         f"seed={result.seed} · max_turns={result.max_turns} · "
         f"generated {datetime.now():%Y-%m-%d %H:%M:%S}"
     )

@@ -66,6 +66,7 @@ class GameRecord:
     specials: dict = field(default_factory=dict)     # {seat: Counter(stype -> count)}
     actions: dict = field(default_factory=dict)      # {seat: Counter(action -> count)}
     log: list = field(default_factory=list)
+    deal_index: int | None = None   # index of the fixed deal, if one was used
 
     @property
     def smart_won(self):
@@ -145,7 +146,7 @@ def _take_turn(state, seat, strat, specials, actions):
     return _discard_and_resolve(state, seat, drawn, strat, specials)
 
 
-def _snap_sweep(state, strat_by_seat, snaps):
+def _snap_sweep(state, strat_by_seat, snaps, rng=random):
     """Symmetric snap resolution: both seats react to the current discard top."""
     while state["phase"] != PHASE_GAME_OVER:
         eligible = {}
@@ -159,7 +160,7 @@ def _snap_sweep(state, strat_by_seat, snaps):
         if not eligible:
             break
         if len(eligible) == 2:                     # simultaneous → coin flip
-            seat = random.choice(SEATS)
+            seat = rng.choice(SEATS)
         else:
             seat = next(iter(eligible))
         idx = eligible[seat][0]
@@ -174,19 +175,37 @@ def _snap_sweep(state, strat_by_seat, snaps):
 
 # ── Game / batch ───────────────────────────────────────────────────────────
 
-def play_game(strat_by_seat, starting_seat, smart_seat, seat_strategy, max_turns=1000):
-    state = create_initial_state(starting_turn=starting_seat)
+def play_game(strat_by_seat, starting_seat, smart_seat, seat_strategy, max_turns=1000,
+              deal=None):
+    """Play one game. Pass a `deals.Deal` to fix the shuffle: the deck order, the
+    mid-game reshuffles and the simultaneous-snap coin flips all become functions
+    of the deal, so replaying it with the seats swapped isolates strategy from
+    deck luck. Without one, everything draws from global `random` as before."""
+    if deal is None:
+        state = create_initial_state(starting_turn=starting_seat)
+        rng = random
+    else:
+        state = create_initial_state(starting_turn=starting_seat,
+                                     deck=deal.deck, deal_seed=deal.seed)
+        rng = random.Random(deal.seed)
+        # Common random numbers for the strategies themselves. Every bot here draws
+        # from global `random`, so without this the two mirrored games diverge on the
+        # first coin flip and stop being the same deal in any useful sense. Reseeding
+        # per game means both halves start from an identical stream; they still
+        # diverge once the two strategies make different numbers of draws, but the
+        # opening — where deck luck bites hardest — stays matched.
+        random.seed(deal.seed)
     snaps = {"player": 0, "computer": 0}
     specials = {"player": Counter(), "computer": Counter()}
     actions = {"player": Counter(), "computer": Counter()}
 
-    state = _snap_sweep(state, strat_by_seat, snaps)   # opening snaps
+    state = _snap_sweep(state, strat_by_seat, snaps, rng)   # opening snaps
     turns = 0
     while state["phase"] != PHASE_GAME_OVER and turns < max_turns:
         seat = state["current_turn"]
         state = _take_turn(state, seat, strat_by_seat[seat], specials, actions)
         turns += 1
-        state = _snap_sweep(state, strat_by_seat, snaps)
+        state = _snap_sweep(state, strat_by_seat, snaps, rng)
 
     player_score, computer_score = get_scores(state)
     winner = get_winner(state)
@@ -213,16 +232,49 @@ def play_game(strat_by_seat, starting_seat, smart_seat, seat_strategy, max_turns
         specials=specials,
         actions=actions,
         log=state["log"],
+        deal_index=(deal.index if deal is not None else None),
     )
 
 
+def _sim_schedule(n, duplicate, seed):
+    """`n` (smart_seat, starting_seat, deal) specs for a smart-vs-opponent run.
+
+    Independent mode walks `balanced_sides(g)`, so the four seat x who-moves-first
+    cells come out exactly even rather than even in expectation. Duplicate mode
+    generates `n // 2` fixed deals and plays each one twice — same deck, same
+    starting seat, `smart` swapped between the two physical seats — so deck luck
+    lands on both strategies equally and cancels within the pair; that schedule is
+    already exactly balanced (starting seat alternates by deal, both seats emitted
+    per deal).
+
+    Neither branch consumes RNG, which keeps the deck stream independent of the
+    seat assignment.
+    """
+    if not duplicate:
+        for g in range(n):
+            yield (*balanced_sides(g), None)
+        return
+    from .deals import make_deals
+    emitted = 0
+    for deal in make_deals((n + 1) // 2, seed):
+        starting_seat = "player" if deal.index % 2 == 0 else "computer"
+        for smart_seat in SEATS:
+            if emitted >= n:
+                return
+            yield smart_seat, starting_seat, deal
+            emitted += 1
+
+
 def run_simulation(n, smart, opponent=None, seed=None, max_turns=1000, on_game=None,
-                   smart_label="smart", opponent_label="random"):
+                   smart_label="smart", opponent_label="random", duplicate=False):
     """Play `n` games of `smart` vs `opponent`; return (records, timing).
 
     `smart` and `opponent` are strategy objects/modules exposing
     choose_move / should_snap / apply_special. `opponent` defaults to the
     random strategy module.
+
+    With `duplicate=True` the games are run as `n // 2` mirrored deal pairs — see
+    `_sim_schedule` — which removes deck luck from the win-rate estimate.
     """
     if opponent is None:
         opponent = random_strategy
@@ -231,14 +283,13 @@ def run_simulation(n, smart, opponent=None, seed=None, max_turns=1000, on_game=N
 
     records = []
     t0 = time.perf_counter()
-    for g in range(n):
-        # Stratified, not sampled: exact balance of seat x who-moves-first.
-        smart_seat, starting_seat = balanced_sides(g)
+    for g, (smart_seat, starting_seat, deal) in enumerate(_sim_schedule(n, duplicate, seed)):
         other = _other(smart_seat)
         strat_by_seat = {smart_seat: smart, other: opponent}
         seat_strategy = {smart_seat: smart_label, other: opponent_label}
 
-        rec = play_game(strat_by_seat, starting_seat, smart_seat, seat_strategy, max_turns)
+        rec = play_game(strat_by_seat, starting_seat, smart_seat, seat_strategy,
+                        max_turns, deal=deal)
         records.append(rec)
         if on_game is not None:
             on_game(g, rec)
