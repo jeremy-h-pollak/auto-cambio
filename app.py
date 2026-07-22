@@ -38,28 +38,26 @@ EASIEST_KEY = "reckless"     # lowest — built to lose, for an easy game
 # every computer move makes a live, metered API call that blocks the HTTP response.
 LLM_ENABLED = bool(os.environ.get("CAMBIO_ENABLE_LLM"))
 
-# Two model-specific LLM opponents. The OpenRouter model ids drift over time, so
+# The model-specific LLM opponents. The OpenRouter model ids drift over time, so
 # each is overridable via an env var without touching code. The registry is shared
-# with the tournament CLI (game/llm_opponents.py) so both agree on the models.
-from game.llm_opponents import llm_model
-KIMI_MODEL  = llm_model("kimi")
-HAIKU_MODEL = llm_model("haiku")
+# with the tournament CLI (game/llm_opponents.py) so both agree on the models — and
+# on which system-prompt version each one plays under.
+from game.llm_opponents import NAMED_LLM_OPPONENTS, llm_model, llm_prompt
 
 # Chooser display order: the two boss modes, the five original named strategies,
-# Random, then the two LLM opponents (only when enabled).
+# Random, then every named LLM opponent (only when enabled).
 NAMED_OPPONENTS = ["greedy", "aggressive", "conservative", "snapper", "power"]
 OPPONENT_KEYS = (["hardest", "easiest"] + NAMED_OPPONENTS + ["random"]
-                 + (["kimi", "haiku"] if LLM_ENABLED else []))
+                 + (list(NAMED_LLM_OPPONENTS) if LLM_ENABLED else []))
 
 
 def _winrate_label(key):
     """Short 'chance to beat Random' line shown under each opponent card."""
     if key == "random":
         return "≈50% — the coin-flip baseline"
-    if key == "kimi":
-        return "experimental — Kimi K2 reasons live (slow, metered)"
-    if key == "haiku":
-        return "experimental — Claude Haiku reasons live (slow, metered)"
+    if key in NAMED_LLM_OPPONENTS:
+        name = NAMED_LLM_OPPONENTS[key]["name"].removesuffix(" (LLM)")
+        return f"experimental — {name} reasons live (slow, metered)"
     profile_key = {"hardest": HARDEST_KEY, "easiest": EASIEST_KEY}.get(key, key)
     pct = WINRATE_VS_RANDOM.get(profile_key)
     return f"~{pct}% chance to beat the Random AI" if pct is not None else ""
@@ -81,13 +79,21 @@ def _opponent_info(key):
             f"(only ~{WINRATE_VS_RANDOM[EASIEST_KEY]}% win rate vs Random).",
             *p.rules,
         ]
-    if key in ("kimi", "haiku"):
+    if key in NAMED_LLM_OPPONENTS:
         from game.strategy_llm import LLMStrategy
-        model = KIMI_MODEL if key == "kimi" else HAIKU_MODEL
-        name = "Kimi K2 (LLM)" if key == "kimi" else "Claude Haiku (LLM)"
-        return f"{name} — experimental", [
-            f"Model: {model} (via OpenRouter).",
-            *LLMStrategy.rules,
+        from game.llm_prompts import PLAYBOOK_BOT
+        version = llm_prompt(key)
+        # The first stock bullet says the model gets *only* the rules — true on v1,
+        # not on a prompt version that hands over a playbook, so swap it there.
+        rules = list(LLMStrategy.rules)
+        if version != "v1":
+            rules[0] = (f"An LLM (via OpenRouter) is given the rules, the cards it "
+                        f"legitimately knows, and — new in system prompt {version} — "
+                        f"{PLAYBOOK_BOT.name}'s playbook, the strongest hand-written "
+                        f"bot on the ladder, as strategy guidance.")
+        return f"{NAMED_LLM_OPPONENTS[key]['name']} — experimental", [
+            f"Model: {llm_model(key)} (via OpenRouter), system prompt {version}.",
+            *rules,
         ]
     if key in strategies.PROFILES:
         p = strategies.PROFILES[key]
@@ -106,9 +112,9 @@ def _strategy_object(key):
         return strategies.get(HARDEST_KEY)
     if key == "easiest":
         return strategies.get(EASIEST_KEY)
-    if key in ("kimi", "haiku") and LLM_ENABLED:
+    if key in NAMED_LLM_OPPONENTS and LLM_ENABLED:
         from game.strategy_llm import get_llm_strategy
-        return get_llm_strategy(model=KIMI_MODEL if key == "kimi" else HAIKU_MODEL)
+        return get_llm_strategy(model=llm_model(key), prompt_version=llm_prompt(key))
     if key in strategies.PROFILES:
         return strategies.get(key)
     return random_strategy

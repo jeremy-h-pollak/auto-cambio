@@ -366,7 +366,7 @@
       {% for e in state.llm_trace | reverse %}
         <div class="llm-entry">
           <div class="llm-head">
-            <span class="llm-tag">#{{ e.n }} · {{ e.kind }} · {{ e.model }}</span>
+            <span class="llm-tag">#{{ e.n }} · {{ e.kind }} · {{ e.model }}{% if e.prompt_version %} · prompt {{ e.prompt_version }}{% endif %}</span>
             {% if e.error %}
               <span class="llm-bad">⚠ {{ e.error }}</span>
             {% elif e.parsed is not none %}
