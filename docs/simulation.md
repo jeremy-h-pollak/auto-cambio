@@ -29,7 +29,12 @@ progress line. `--strategy` is validated against `PROFILES` (plus `random`).
 
 The smart strategy plays the `--strategy` profile; the opponent is always the random
 strategy. Per game, the simulator balances **which seat is smart** and **who moves
-first** (both randomized), so neither seat nor first-move bias contaminates the win rate.
+first** — *stratified*, via `balanced_sides(g)`, so the four cells are exactly even
+rather than even in expectation, and neither seat nor first-move bias contaminates
+the win rate. (Sampling those with `random.choice` left the smallest cell averaging
+113 of 125 expected at n=500.) The physical seat is measurably neutral — seat main
+effect under 0.1 pts over 24k games — while **moving first is worth ~1.5–2.7 pts**
+depending on the strategy, so the start column is the one that has to balance.
 `--strategy random` runs random-vs-random (labelled "Random A / Random B") as a
 calibration baseline.
 
@@ -52,6 +57,18 @@ A run produces:
   plain-language headline verdict (bucketed against the ~75% ceiling), notable outliers
   (high tie rate, capped games, early Cambio calls, favourite special, lopsided wins…),
   and first-move/fairness commentary. Each highlight is colour-keyed by tone.
+
+  The first-move verdicts are **gated on a 95% confidence interval**, not on the point
+  estimate: "First move matters" needs the whole interval outside ±`STARTER_NEGLIGIBLE`,
+  "Fair start" needs it entirely inside, and anything spanning both prints *"First move:
+  not enough games"* with the games required. Comparing a raw point estimate against the
+  fixed thresholds made the report contradict itself run to run — at the default n=500 it
+  printed "Fair start" on 52.5% of runs and "First move matters" on 8.0% *of the same
+  underlying truth*, and "Leans on moving first" fired on 40.5% while structurally
+  overstating the effect (it can only fire when noise pushes past the threshold). Settling
+  a ±2-pt question needs ~2,400 decisive games, so at n=500 "not enough games" is the
+  honest answer. `SEAT_LEAN` is likewise superseded: the first-vs-second lean now prints
+  only when its interval excludes zero, and shows that interval.
 
 Charts are **inline SVG** (no JavaScript, no CDN); reports stay self-contained HTML that
 opens offline with **no third-party dependencies**. The SVG primitives live in
@@ -80,7 +97,9 @@ Key pieces:
   snaps (resolving simultaneous eligibility with a coin flip), and re-evaluates after
   each snap. This is the symmetric counterpart to the engine's per-move snapping.
 - **`run_simulation(n, smart, opponent, seed, …)`** → `(records, timing)`. Seeds the RNG
-  once, randomizes the smart seat and starter each game.
+  once, then walks `balanced_sides(g)` for the smart seat and starter — consuming no RNG,
+  so the deck stream stays independent of the seat assignment. `game/tournament.py`
+  shares the same helper.
 
 Because `_take_turn` consumes no RNG for its bookkeeping, **seeded runs are bit-for-bit
 reproducible**. See [architecture.md](architecture.md) for the broader engine-vs-simulator

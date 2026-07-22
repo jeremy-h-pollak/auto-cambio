@@ -30,6 +30,27 @@ def _other(seat):
     return "computer" if seat == "player" else "player"
 
 
+def balanced_sides(g):
+    """Balanced (a_seat, starting_seat) for game `g` of a batch or pairing.
+
+    Cycles the four (which physical seat entrant A takes) x (who moves first)
+    combinations, so over any multiple of 4 games A sits in each seat half the
+    time and starts half the time — exactly, rather than in expectation.
+
+    Drawing these from `random.choice` instead leaves the four cells visibly
+    uneven at realistic batch sizes: over 200 runs of n=500 the smallest cell
+    averaged 113 of the 125 expected (worst case 96). The physical seat itself
+    is neutral (measured seat main effect < 0.1 pts), but moving first is worth
+    ~1.5-2.7 pts depending on the strategy, so the start column has to balance.
+
+    Consumes no RNG, which also keeps the deck stream independent of the
+    seat assignment.
+    """
+    a_seat = SEATS[g % 2]
+    starting_seat = SEATS[(g // 2) % 2]
+    return a_seat, starting_seat
+
+
 @dataclass
 class GameRecord:
     starting_seat: str
@@ -211,11 +232,11 @@ def run_simulation(n, smart, opponent=None, seed=None, max_turns=1000, on_game=N
     records = []
     t0 = time.perf_counter()
     for g in range(n):
-        smart_seat = random.choice(SEATS)            # balance which seat is smart
+        # Stratified, not sampled: exact balance of seat x who-moves-first.
+        smart_seat, starting_seat = balanced_sides(g)
         other = _other(smart_seat)
         strat_by_seat = {smart_seat: smart, other: opponent}
         seat_strategy = {smart_seat: smart_label, other: opponent_label}
-        starting_seat = random.choice(SEATS)         # balance who moves first
 
         rec = play_game(strat_by_seat, starting_seat, smart_seat, seat_strategy, max_turns)
         records.append(rec)

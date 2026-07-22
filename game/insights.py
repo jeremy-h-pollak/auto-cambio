@@ -12,6 +12,8 @@ cards. The thresholds below are gathered as named constants so they are easy to
 audit and tune.
 """
 
+import math
+
 # ── Tunable thresholds ───────────────────────────────────────────────────────
 CEILING_PCT = 75.0          # documented win-rate ceiling vs Random (strong bots converge here)
 STRONG_PCT = 72.0           # "near the ceiling" band floor
@@ -29,10 +31,52 @@ STARTER_EDGE = 5.0          # first-move advantage worth calling real (points of
 STARTER_NEGLIGIBLE = 2.0    # first-move advantage small enough to dismiss
 SEAT_LEAN = 5.0             # gap between moving-first and moving-second win rates
 ELO_PER_DECADE = 400.0      # 400 Elo ≈ a 10:1 expected win ratio
+CI_Z = 1.959964             # two-sided 95% normal quantile
+
+# STARTER_EDGE / STARTER_NEGLIGIBLE / SEAT_LEAN are point-estimate thresholds and
+# sit *below the noise floor* of a default n=500 batch. Measured on 200 runs of
+# 500 games with the same strategy on both sides (so seat contributes nothing and
+# only turn order can): the first/second gap has a true value of +3.0 pts but a
+# per-run SD of 4.5, and the starter win rate a true 51.6% with an SD of 2.3. At
+# those thresholds "Leans on moving first" fired on 40.5% of runs — always
+# overstating the effect, since it can only fire when noise pushes the estimate
+# past 5 — while "Fair start" (52.5%) and "First move matters" (8.0%) fired on
+# the same underlying truth, contradicting each other run to run.
+#
+# So the thresholds below are now applied to a 95% confidence interval rather
+# than to the point estimate: a verdict is only printed when the whole interval
+# supports it. They remain the fallback when a caller passes rates without the
+# underlying counts.
 
 
 def _pct(num, den):
     return (100.0 * num / den) if den else 0.0
+
+
+def _wilson_ci(wins, n, z=CI_Z):
+    """Wilson 95% CI (percentage points) for a rate; None if counts are absent."""
+    if not n:
+        return None
+    p = wins / n
+    d = 1.0 + z * z / n
+    centre = (p + z * z / (2 * n)) / d
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
+    return (100.0 * (centre - half), 100.0 * (centre + half))
+
+
+def _diff_ci(w1, n1, w2, n2, z=CI_Z):
+    """Wald 95% CI (percentage points) for rate1 - rate2; None if counts absent."""
+    if not n1 or not n2:
+        return None
+    p1, p2 = w1 / n1, w2 / n2
+    se = math.sqrt(p1 * (1 - p1) / n1 + p2 * (1 - p2) / n2)
+    delta = 100.0 * (p1 - p2)
+    return (delta - 100.0 * z * se, delta + 100.0 * z * se)
+
+
+def _games_for(halfwidth, z=CI_Z):
+    """Games needed for a rate's 95% half-width to fall under `halfwidth` points."""
+    return int(math.ceil((z * 50.0 / halfwidth) ** 2))
 
 
 def _h(tone, icon, title, text):
@@ -172,26 +216,52 @@ def self_play_highlights(stats, config):
     if config.get("show_first_move", True):
         starter = s["starter_winrate_decisive"]
         delta = starter - 50.0
-        if abs(delta) >= STARTER_EDGE:
+        ci = _wilson_ci(s.get("starter_wins_decisive"), s.get("decisive_n"))
+        if ci is None:                      # no counts — legacy point-estimate rule
+            real, negligible, band = abs(delta) >= STARTER_EDGE, abs(delta) < STARTER_NEGLIGIBLE, ""
+        else:
+            lo, hi = ci
+            real = lo > 50.0 + STARTER_NEGLIGIBLE or hi < 50.0 - STARTER_NEGLIGIBLE
+            negligible = 50.0 - STARTER_NEGLIGIBLE < lo and hi < 50.0 + STARTER_NEGLIGIBLE
+            band = f" (95% CI {lo:.1f}–{hi:.1f}%)"
+        if real:
             out.append(_h(
                 "warn", "🔀", "First move matters",
-                f"The starting seat wins {starter:.1f}% of decisive games "
+                f"The starting seat wins {starter:.1f}% of decisive games{band} "
                 f"({delta:+.1f} pts vs even) — a real first-move advantage baked into "
                 f"these numbers."
             ))
-        elif abs(delta) < STARTER_NEGLIGIBLE:
+        elif negligible:
             out.append(_h(
                 "good", "⚖️", "Fair start",
-                f"The starting seat wins {starter:.1f}% of decisive games — first-move "
-                f"advantage is negligible, so the result reflects strategy, not seat."
+                f"The starting seat wins {starter:.1f}% of decisive games{band} — "
+                f"first-move advantage is negligible, so the result reflects strategy, "
+                f"not seat."
             ))
-        seat_gap = s["smart_first_winrate"] - s["smart_second_winrate"]
-        if abs(seat_gap) >= SEAT_LEAN:
+        elif ci is not None:                # silent on the legacy path, which has no interval
+            out.append(_h(
+                "neutral", "🎲", "First move: not enough games",
+                f"The starting seat wins {starter:.1f}% of decisive games{band} — that "
+                f"interval covers both 'negligible' and 'real', so this batch can't "
+                f"settle it. Pinning it to ±{STARTER_NEGLIGIBLE:.0f} pts needs about "
+                f"{_games_for(STARTER_NEGLIGIBLE):,} decisive games."
+            ))
+
+        first, second = s["smart_first_winrate"], s["smart_second_winrate"]
+        seat_gap = first - second
+        gap_ci = _diff_ci(s.get("smart_first_wins"), s.get("smart_first_n"),
+                          s.get("smart_second_wins"), s.get("smart_second_n"))
+        if gap_ci is None:
+            lean, gap_band = abs(seat_gap) >= SEAT_LEAN, ""
+        else:
+            glo, ghi = gap_ci
+            lean = glo > 0.0 or ghi < 0.0   # interval excludes zero
+            gap_band = f" (95% CI {glo:+.1f} to {ghi:+.1f})"
+        if lean:
             out.append(_h(
                 "neutral", "🔀", "Leans on moving first",
-                f"{name} wins {s['smart_first_winrate']:.1f}% moving first vs "
-                f"{s['smart_second_winrate']:.1f}% moving second — a {seat_gap:+.1f}-pt "
-                f"swing from seat order alone."
+                f"{name} wins {first:.1f}% moving first vs {second:.1f}% moving second "
+                f"— a {seat_gap:+.1f}-pt swing{gap_band} from turn order alone."
             ))
 
     return out
