@@ -126,6 +126,51 @@ def test_first_move_suppressed_when_disabled():
     assert not any(it["title"] in ("Fair start", "First move matters") for it in items)
 
 
+# ── self-play: first-move verdicts are CI-gated when counts are present ──────
+
+def _counted(starter_wins, decisive_n, first=(0, 0), second=(0, 0)):
+    """Stats carrying the raw counts, so insights can build intervals."""
+    return _stats(
+        starter_winrate_decisive=100.0 * starter_wins / decisive_n,
+        starter_wins_decisive=starter_wins, decisive_n=decisive_n,
+        smart_first_wins=first[0], smart_first_n=first[1],
+        smart_second_wins=second[0], smart_second_n=second[1],
+        smart_first_winrate=(100.0 * first[0] / first[1]) if first[1] else 0.0,
+        smart_second_winrate=(100.0 * second[0] / second[1]) if second[1] else 0.0,
+    )
+
+
+def test_fair_start_needs_the_whole_interval_inside_the_band():
+    """50.0% over 100k decisive games is confidently negligible."""
+    items = self_play_highlights(_counted(50_000, 100_000), {})
+    assert any(it["title"] == "Fair start" for it in items)
+
+
+def test_narrow_lead_at_small_n_is_reported_as_undecided():
+    """51% over 500 games spans both 'negligible' and 'real' — don't pick one."""
+    titles = _titles(self_play_highlights(_counted(255, 500), {}))
+    assert "First move: not enough games" in titles
+    assert "Fair start" not in titles and "First move matters" not in titles
+
+
+def test_large_edge_still_flagged_at_small_n():
+    """58% over 500 games clears the band even after widening to a CI."""
+    fm = [it for it in self_play_highlights(_counted(290, 500), {})
+          if it["title"] == "First move matters"]
+    assert fm and fm[0]["tone"] == "warn"
+
+
+def test_seat_lean_needs_interval_to_exclude_zero():
+    # +4-pt gap on 250 games a side: interval straddles zero, stays quiet.
+    noisy = _counted(250, 500, first=(135, 250), second=(125, 250))
+    assert "Leans on moving first" not in _titles(self_play_highlights(noisy, {}))
+    # Same gap on 25k games a side: now resolvable, and it reports the interval.
+    solid = _counted(25_000, 50_000, first=(13_500, 25_000), second=(12_500, 25_000))
+    lean = [it for it in self_play_highlights(solid, {})
+            if it["title"] == "Leans on moving first"]
+    assert lean and "95% CI" in lean[0]["text"]
+
+
 # ── self-play: guards ────────────────────────────────────────────────────────
 
 def test_empty_batch_returns_one_neutral_item():

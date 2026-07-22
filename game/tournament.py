@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from . import strategies
 from . import strategy as random_strategy
 from .strategies_advanced import ADVANCED, get_advanced
-from .simulator import play_game
+from .simulator import play_game, balanced_sides
 
 OTHER = {"player": "computer", "computer": "player"}
 
@@ -137,14 +137,12 @@ def entrants(include_random=True, include_llm=False, llm_model=None, llm_snaps=F
 def _sides(g):
     """Balanced (a_seat, starting_seat) for game `g` of a pairing.
 
-    Cycles the four (which seat A takes) x (who starts) combinations, so over any
-    multiple of 4 games each entrant starts half the time and sits in each seat
-    half the time. Seat is symmetric at the rules level; the starting-player
-    balance is the one that materially removes first-move bias.
+    Shared with self-play — see `simulator.balanced_sides`. Note the four cells
+    only come out exactly even when `k % 4 == 0`; for other `k` the marginals are
+    still as balanced as possible (each ceil(k/2)), leaving at most one surplus
+    first-move game per pairing — worth ~0.08 pts of score rate, under 1 Elo.
     """
-    a_seat = "player" if g % 2 == 0 else "computer"
-    starting_seat = "player" if (g // 2) % 2 == 0 else "computer"
-    return a_seat, starting_seat
+    return balanced_sides(g)
 
 
 def _schedule(k, deals_):

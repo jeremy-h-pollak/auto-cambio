@@ -58,6 +58,9 @@ def compute_stats(records, timing):
 
     smart_first = [r for r in records if r.smart_seat == r.starting_seat]
     smart_second = [r for r in records if r.smart_seat != r.starting_seat]
+    starter_wins_decisive = sum(1 for r in decisive if r.starter_won)
+    smart_first_wins = sum(1 for r in smart_first if r.smart_won)
+    smart_second_wins = sum(1 for r in smart_second if r.smart_won)
 
     cambio_games = [r for r in records if r.ending == "cambio"]
     caller_wins = sum(1 for r in cambio_games if r.winner_seat == r.cambio_caller)
@@ -86,11 +89,18 @@ def compute_stats(records, timing):
         "tiebreak_wins": tiebreak_wins,
         "tiebreak_rate": _pct(tiebreak_wins, n),
         "starter_winrate": _pct(starter_wins, n),
-        "starter_winrate_decisive": _pct(
-            sum(1 for r in decisive if r.starter_won), len(decisive)
-        ),
-        "smart_first_winrate": _pct(sum(1 for r in smart_first if r.smart_won), len(smart_first)),
-        "smart_second_winrate": _pct(sum(1 for r in smart_second if r.smart_won), len(smart_second)),
+        "starter_winrate_decisive": _pct(starter_wins_decisive, len(decisive)),
+        "smart_first_winrate": _pct(smart_first_wins, len(smart_first)),
+        "smart_second_winrate": _pct(smart_second_wins, len(smart_second)),
+        # Raw numerators/denominators behind the three seat rates above, so
+        # insights.py can attach confidence intervals instead of comparing a
+        # noisy point estimate against a fixed threshold.
+        "decisive_n": len(decisive),
+        "starter_wins_decisive": starter_wins_decisive,
+        "smart_first_n": len(smart_first),
+        "smart_second_n": len(smart_second),
+        "smart_first_wins": smart_first_wins,
+        "smart_second_wins": smart_second_wins,
         "avg_smart_score": _mean(_seat_score(r, r.smart_seat) for r in records),
         "avg_random_score": _mean(
             _seat_score(r, "computer" if r.smart_seat == "player" else "player") for r in records
