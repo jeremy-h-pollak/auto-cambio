@@ -19,6 +19,7 @@ auto-cambio/
 │   ├── strategy_smart.py       # STRATEGY: thin facade exposing the "greedy" profile as a module
 │   ├── engine.py               # ENGINE: GameEngine — owns state, drives live turn flow
 │   ├── simulator.py            # Self-play runner (drives rules directly; symmetric snaps)
+│   ├── deals.py                # Fixed shuffles for duplicate-bridge mirrored play
 │   ├── charts.py               # Inline-SVG chart primitives (donut, bar, diverging) — no JS
 │   ├── insights.py             # Auto-generated "interesting results" highlight heuristics
 │   ├── report.py               # Standalone HTML report for a simulation batch
@@ -40,6 +41,7 @@ auto-cambio/
 │   ├── test_rules.py           # Unit tests for the pure rules layer
 │   ├── test_engine.py          # Integration smoke test for full-game turn flow
 │   ├── test_simulator.py       # Unit tests for GameRecord bookkeeping
+│   ├── test_deals.py           # Unit tests for duplicate deals + the mirrored schedule
 │   ├── test_tournament.py      # Unit tests for Bradley-Terry / Elo + tournament bookkeeping
 │   ├── test_charts.py          # Inline-SVG primitives: validity, empty-data, no <script>
 │   ├── test_insights.py        # Highlight heuristics: thresholds + guards
@@ -91,7 +93,11 @@ auto-cambio/
   snaps and turns synchronously, alternates the starting player on `reset()`.
 - **`simulator.py`** — batch self-play. `run_simulation(n, smart, opponent, …)` →
   `(records, timing)`; `play_game(...)` → a `GameRecord`. Enforces the symmetric snap
-  sweep self-play needs.
+  sweep self-play needs. Pass `deal=` / `duplicate=True` to fix the shuffle.
+- **`deals.py`** — `Deal` (a frozen 52-card order + a seed for the randomness a game
+  consumes after the deal) and `make_deals(n, seed)`. Backs `--duplicate`: the same deal
+  played twice with the entrants swapped, so deck luck cancels. See
+  [tournament.md](tournament.md#controlling-for-deck-luck-duplicate).
 - **`charts.py`** — dependency-free inline-SVG chart primitives shared by both reports:
   `donut`, `vbar_chart`, `diverging_gap_bar`, `legend`. No JavaScript; each returns a
   self-contained `<svg>` string that uses the report's CSS colour variables.

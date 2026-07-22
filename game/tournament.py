@@ -49,6 +49,10 @@ class PairResult:
     b_wins: int
     ties: int
     a_starts: int          # games in which A moved first (balance check)
+    # Duplicate mode only: A's score (win=1, tie=0.5) summed over the two mirrored
+    # games of each deal, so each entry is in [0, 2]. The resampling unit for the
+    # bootstrap — a deal pair, not a game.
+    deal_scores: list = field(default_factory=list)
 
 
 @dataclass
@@ -70,6 +74,9 @@ class TournamentResult:
     total_ties: int = 0
     mean_length: float = 0.0
     timing: dict = field(default_factory=dict)
+    duplicate: bool = False         # were games run as mirrored duplicate deals?
+    n_deals: int = 0                # deals per pairing (k // 2 in duplicate mode)
+
 
 
 # ── Entrants ─────────────────────────────────────────────────────────────────
@@ -140,10 +147,60 @@ def _sides(g):
     return a_seat, starting_seat
 
 
-def run_tournament(field_, k, seed=None, max_turns=1000, on_pair=None):
-    """Play every pairing `k` times; return a fully-rated TournamentResult."""
+def _schedule(k, deals_):
+    """The `k` games of one pairing as (a_seat, starting_seat, deal, deal_index).
+
+    Without deals this is the original independent-shuffle schedule: `_sides(g)`
+    cycles the four seat x tempo combinations and every game gets a fresh shuffle.
+
+    With deals it is a **duplicate** schedule: each deal is played twice with the
+    deck order *and* the starting seat held fixed and only the entrants swapped, so
+    across the pair each entrant plays both sides of the same deal. Whatever that
+    deal was worth is handed to both of them and cancels; what survives is the part
+    of the result the strategies actually caused. Starting seat alternates by deal,
+    which keeps the same seat/tempo balance `_sides` gave.
+
+    Each pairing gets its **own** deal set (see `_pair_deals`). Sharing one set
+    field-wide is tempting — every entrant measured on identical hands — but it
+    correlates all the pairings in a run, so deal luck no longer averages out across
+    them; measured, that inflated run-to-run rating variance ~3x. Independent deal
+    sets per pairing keep that averaging and still get the within-pair mirror.
+    """
+    if not deals_:
+        return [(*_sides(g), None, None) for g in range(k)]
+    out = []
+
+    for m, deal in enumerate(deals_):
+        starting_seat = "player" if m % 2 == 0 else "computer"
+        for a_seat in ("player", "computer"):
+            out.append((a_seat, starting_seat, deal, m))
+    return out
+
+
+def _pair_deals(k, duplicate, seed, idx):
+    """The `k // 2` deals pairing `idx` plays, or `()` outside duplicate mode.
+
+    Derived from `(seed, idx)` so runs stay reproducible while each pairing draws an
+    independent deal set.
+    """
+    if not duplicate:
+        return ()
+    from .deals import make_deals
+    return make_deals(k // 2, None if seed is None else f"{seed}:{idx}")
+
+
+def run_tournament(field_, k, seed=None, max_turns=1000, on_pair=None, duplicate=False):
+    """Play every pairing `k` times; return a fully-rated TournamentResult.
+
+    With `duplicate=True` the `k` games become `k // 2` duplicate-bridge deal pairs
+    (see `_schedule`): each deal is played twice with the entrants swapped, so the
+    deal is worth the same to both and cancels. `k` must be even.
+    """
     if seed is not None:
         random.seed(seed)
+    if duplicate and k % 2:
+        raise ValueError(f"duplicate mode needs an even -k (got {k}): "
+                         "each deal is played twice with the seats swapped")
 
     n = len(field_)
     win = [[0.0] * n for _ in range(n)]
@@ -156,29 +213,36 @@ def run_tournament(field_, k, seed=None, max_turns=1000, on_pair=None):
     length_sum = 0
 
     pair_list = list(itertools.combinations(range(n), 2))
+    n_deals = k // 2 if duplicate else 0
     t0 = time.perf_counter()
     for idx, (i, j) in enumerate(pair_list):
         a_wins = b_wins = tie = a_starts = 0
-        for g in range(k):
-            a_seat, starting_seat = _sides(g)
+        deal_scores = [0.0] * n_deals
+        for a_seat, starting_seat, deal, m in _schedule(k, _pair_deals(k, duplicate, seed, idx)):
             b_seat = OTHER[a_seat]
             if starting_seat == a_seat:
                 a_starts += 1
             strat_by_seat = {a_seat: field_[i].strat, b_seat: field_[j].strat}
             seat_strategy = {a_seat: field_[i].key, b_seat: field_[j].key}
-            rec = play_game(strat_by_seat, starting_seat, a_seat, seat_strategy, max_turns)
+            rec = play_game(strat_by_seat, starting_seat, a_seat, seat_strategy,
+                            max_turns, deal=deal)
             length_sum += rec.length
             if rec.winner_seat is None:
                 tie += 1
+                a_score = 0.5
             elif rec.winner_seat == a_seat:
                 a_wins += 1
+                a_score = 1.0
             else:
                 b_wins += 1
+                a_score = 0.0
+            if m is not None:
+                deal_scores[m] += a_score
 
         win[i][j] = a_wins + 0.5 * tie
         win[j][i] = b_wins + 0.5 * tie
         ngames[i][j] = ngames[j][i] = k
-        pairs[(i, j)] = PairResult(i, j, a_wins, b_wins, tie, a_starts)
+        pairs[(i, j)] = PairResult(i, j, a_wins, b_wins, tie, a_starts, deal_scores)
         wins[i] += a_wins; losses[i] += b_wins; ties[i] += tie; games[i] += k
         wins[j] += b_wins; losses[j] += a_wins; ties[j] += tie; games[j] += k
         if on_pair is not None:
@@ -203,6 +267,7 @@ def run_tournament(field_, k, seed=None, max_turns=1000, on_pair=None):
             "games_per_s": (total_games / elapsed) if elapsed else 0.0,
             "pairs": len(pair_list),
         },
+        duplicate=duplicate, n_deals=n_deals,
     )
 
 
@@ -267,6 +332,12 @@ def bootstrap_ratings(result, n_boot=2000, ci=0.95, seed=None):
     Bradley-Terry and maps to Elo against the same Random anchor `run_tournament`
     used. No games are re-simulated; only the (cheap, pure) matrix fits re-run.
 
+    For a duplicate-deal tournament the unit is the **deal pair**, not the game: the
+    two mirrored games of a deal share a deck and are not independent, so replicates
+    resample `PairResult.deal_scores` (a block bootstrap). This is what lets the
+    bands actually narrow — the paired design removes deck variance, and the block
+    resample is what reports the narrower spread honestly.
+
     Returns `{index: {"lo", "hi", "median", "samples"}}` where `lo`/`hi` are the
     `(1±ci)/2` percentile bounds of that entrant's rating across replicates. With
     Random anchored, its band is the degenerate `[1500, 1500]` by construction.
@@ -285,13 +356,23 @@ def bootstrap_ratings(result, n_boot=2000, ci=0.95, seed=None):
             total = pr.a_wins + pr.b_wins + pr.ties
             if total <= 0:
                 continue
-            draws = rng.choices((0, 1, 2),
-                                weights=(pr.a_wins, pr.b_wins, pr.ties), k=total)
-            a = draws.count(0)
-            b = draws.count(1)
-            t = total - a - b
-            win[pr.i][pr.j] = a + 0.5 * t
-            win[pr.j][pr.i] = b + 0.5 * t
+            if pr.deal_scores:
+                # Duplicate mode: games within a deal are *not* independent — the two
+                # mirrored halves share a deck — so resample whole deals (a block
+                # bootstrap). Resampling games instead would treat the paired design
+                # as if it were independent and overstate the precision.
+                d = pr.deal_scores
+                a_score = sum(d[rng.randrange(len(d))] for _ in range(len(d)))
+                win[pr.i][pr.j] = a_score
+                win[pr.j][pr.i] = total - a_score
+            else:
+                draws = rng.choices((0, 1, 2),
+                                    weights=(pr.a_wins, pr.b_wins, pr.ties), k=total)
+                a = draws.count(0)
+                b = draws.count(1)
+                t = total - a - b
+                win[pr.i][pr.j] = a + 0.5 * t
+                win[pr.j][pr.i] = b + 0.5 * t
             ngames[pr.i][pr.j] = ngames[pr.j][pr.i] = total
         ratings = to_elo(bradley_terry(win, ngames), anchor_index=anchor)
         for i in range(n):

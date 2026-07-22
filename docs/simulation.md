@@ -20,6 +20,7 @@ baseline**.
 | `--strategy` | `greedy` | a profile key from `strategies.PROFILES`, or `random` for the random-vs-random baseline |
 | `--seed` | none | random seed for reproducible runs |
 | `--quiet` | off | suppress the per-game log; show a progress counter only |
+| `--duplicate` | off | control for deck luck: play `n/2` fixed deals twice each with the two strategies swapping seats. Worth ~10% variance — see [tournament.md](tournament.md#controlling-for-deck-luck-duplicate) |
 | `--max-turns` | `1000` | safety cap on turns per game |
 
 Without `--quiet`, each game streams its full move log; with `--quiet` you get a

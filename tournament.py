@@ -62,6 +62,10 @@ def main(argv=None):
                    help="comma-separated entrant keys to use as the field instead "
                         "of all of them (e.g. 'cartographer,greedy,random'). Keys "
                         "are profile/advanced names or 'random'.")
+    p.add_argument("--duplicate", action="store_true",
+                   help="control for deck luck: play k/2 fixed deals twice each with "
+                        "the entrants swapped (duplicate bridge). Same number of games; "
+                        "cuts head-to-head variance by roughly 10%%. Requires an even -k.")
     p.add_argument("--max-turns", type=int, default=1000,
                    help="safety cap on turns per game (default: 1000)")
     p.add_argument("--bootstrap", type=int, default=0, metavar="N",
@@ -120,13 +124,21 @@ def main(argv=None):
         else:
             print(f"  [{idx + 1:>3}/{total}] {a.name} vs {b.name}")
 
+    if args.duplicate and args.games % 2:
+        p.error(f"--duplicate needs an even -k (got {args.games}): each deal is "
+                "played twice with the entrants swapped")
+
     seed_note = f", seed={args.seed}" if args.seed is not None else ""
+    dup_note = (f", {args.games // 2} duplicate deals/pairing"
+                if args.duplicate else "")
     n_pairs = len(field_) * (len(field_) - 1) // 2
     print(f"Tournament: {len(field_)} entrants · {n_pairs} pairings · "
-          f"{args.games} games/pairing ({n_pairs * args.games:,} games){seed_note} …")
+          f"{args.games} games/pairing ({n_pairs * args.games:,} games)"
+          f"{seed_note}{dup_note} …")
 
     result = run_tournament(field_, args.games, seed=args.seed,
-                            max_turns=args.max_turns, on_pair=on_pair)
+                            max_turns=args.max_turns, on_pair=on_pair,
+                            duplicate=args.duplicate)
     if args.quiet:
         print()
 
@@ -138,7 +150,7 @@ def main(argv=None):
                                 ci=args.ci_level, seed=args.seed)
 
     config = {"seed": args.seed, "max_turns": args.max_turns,
-              "ci_level": args.ci_level}
+              "ci_level": args.ci_level, "duplicate": args.duplicate}
     write_tournament_report(result, config, args.output, cis=cis)
     _print_summary(result, args.output, cis=cis)
 
