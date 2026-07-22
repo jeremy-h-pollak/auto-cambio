@@ -95,8 +95,11 @@ def _make_deck():
     return deck
 
 
-def create_initial_state(starting_turn="player"):
-    deck = _make_deck()
+def create_initial_state(starting_turn="player", deck=None, deal_seed=None):
+    """Fresh state. `deck` overrides the shuffle with a fixed 52-card order (see
+    `game/deals.py`); `deal_seed` makes the randomness a game consumes *later* —
+    mid-game reshuffles — deterministic instead of drawing from global `random`."""
+    deck = _make_deck() if deck is None else [dict(c) for c in deck]
     player_hand   = deck[:4]
     computer_hand = deck[4:8]
     discard_pile  = [deck[8]]
@@ -120,6 +123,10 @@ def create_initial_state(starting_turn="player"):
         "player_touched":       [],  # player hand positions computer affected this turn
         "special_action":       None,   # {"type", "step", "picks"} during player_special
         "cambio_called_by":     None,
+        # Duplicate-deal bookkeeping: with `deal_seed` set, reshuffles draw from a
+        # local RNG keyed by (deal_seed, shuffle_n) instead of global `random`.
+        "deal_seed":            deal_seed,
+        "shuffle_n":            0,
         "current_turn":         starting_turn,
         "message":              f"Peek at your last 2 cards, then press Start. ({who_first})",
         "log":                  [],
@@ -133,7 +140,13 @@ def _clone(state):
 def _reshuffle_if_needed(state):
     if not state["deck"]:
         top = state["discard_pile"].pop()
-        random.shuffle(state["discard_pile"])
+        seed = state.get("deal_seed")
+        if seed is None:
+            random.shuffle(state["discard_pile"])
+        else:
+            n = state.get("shuffle_n", 0)
+            state["shuffle_n"] = n + 1
+            random.Random(f"{seed}:{n}").shuffle(state["discard_pile"])
         state["deck"] = state["discard_pile"]
         state["discard_pile"] = [top]
 

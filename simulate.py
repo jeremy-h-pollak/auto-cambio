@@ -72,6 +72,10 @@ def main(argv=None):
                    help="random seed for reproducible runs")
     p.add_argument("--quiet", action="store_true",
                    help="suppress the per-game log; show progress only")
+    p.add_argument("--duplicate", action="store_true",
+                   help="control for deck luck: play n/2 fixed deals twice each, with "
+                        "the two strategies swapping seats, so the same hands are dealt "
+                        "to both. Same number of games; cuts win-rate variance ~10%%.")
     p.add_argument("--max-turns", type=int, default=1000,
                    help="safety cap on turns per game (default: 1000)")
     p.add_argument("--enable-llm", action="store_true",
@@ -150,15 +154,17 @@ def main(argv=None):
         }
 
     seed_note = f", seed={args.seed}" if args.seed is not None else ""
-    print(f"Simulating {args.games} games ({run_desc}){seed_note} …")
+    dup_note = f", {args.games // 2} duplicate deals" if args.duplicate else ""
+    print(f"Simulating {args.games} games ({run_desc}){seed_note}{dup_note} …")
     records, timing = run_simulation(
         args.games, smart=smart, opponent=random_strategy,
         seed=args.seed, max_turns=args.max_turns, on_game=on_game,
-        smart_label=smart_label, opponent_label=opp_label)
+        smart_label=smart_label, opponent_label=opp_label, duplicate=args.duplicate)
     if args.quiet:
         print()
 
-    config = {"seed": args.seed, "max_turns": args.max_turns, **config_extra}
+    config = {"seed": args.seed, "max_turns": args.max_turns,
+              "duplicate": args.duplicate, **config_extra}
     stats = write_report(records, timing, config, args.output)
     print(f"\n  Strategy: {run_desc}")
     _print_summary(stats, args.output)

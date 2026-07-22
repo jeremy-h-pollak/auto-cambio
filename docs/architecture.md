@@ -54,6 +54,7 @@ class, no ORM — just a dict that gets deep-copied on every move. Every field:
 | `computer_acted` / `player_touched` | list[int] | **Transient** UI hints: positions the computer touched / player positions its power affected this turn. |
 | `special_action` | dict \| None | Present only during `player_special`: `{"type", "step", "picks"}` — drives multi-step powers. |
 | `cambio_called_by` | str \| None | `None`, `"player"`, `"computer"`, or `"player_empty"` / `"computer_empty"` (round ended by an emptied hand). |
+| `deal_seed` / `shuffle_n` | int \| None, int | Set only under a fixed [duplicate deal](tournament.md#controlling-for-deck-luck-duplicate): mid-game reshuffles then draw from `Random(f"{deal_seed}:{shuffle_n}")` instead of global `random`. `None` in live play. |
 | `message` | str | Human-facing instruction for the current phase. |
 | `log` | list[str] | Chronological event log (rendered reversed in the UI). |
 

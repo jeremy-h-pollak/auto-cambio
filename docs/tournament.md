@@ -21,6 +21,7 @@ ceiling can't.
 | `--seed` | none | random seed for reproducible runs |
 | `--no-random` | off | exclude the random baseline (profiles only) |
 | `--strategies` | none | comma-separated entrant keys to use as the field instead of all of them (e.g. `cartographer,greedy,random`) |
+| `--duplicate` | off | control for deck luck by playing `k/2` fixed deals twice each with the entrants swapped (requires an even `-k`) — see [Controlling for deck luck](#controlling-for-deck-luck-duplicate) |
 | `--max-turns` | `1000` | safety cap on turns per game |
 | `--bootstrap N` | `0` (off) | add bootstrap confidence intervals to every rating from `N` resampled replicates (e.g. `2000`) |
 | `--ci-level` | `0.95` | confidence level for `--bootstrap` intervals |
@@ -66,6 +67,53 @@ games. Each entrant is an `Entrant(key, name, strat)`.
 - Returns a `TournamentResult` with the win matrix, per-entrant W/L/T tallies, fitted
   `strengths`, Elo `ratings`, and timing.
 
+## Controlling for deck luck (`--duplicate`)
+
+A bot dealt `A-2-3-A` beats a better bot dealt `K-Q-J-10` most of the time, and with a fresh
+shuffle every game that luck is noise the rating has to average away. `--duplicate` applies
+the **duplicate-bridge** fix, in [`game/deals.py`](../game/deals.py):
+
+- `make_deals(n, seed)` pre-generates `n` fixed 52-card orders, each with its own seed.
+- Each deal is played **twice**, with the deck order, the starting seat and all in-game
+  randomness held identical and only the **entrants swapped** — so each side plays both
+  halves of the same deal and whatever the deal was worth cancels within the pair.
+- `create_initial_state(starting_turn, deck=, deal_seed=)` takes the fixed deck; `deal_seed`
+  also determines mid-game reshuffles, and `simulator.play_game` reseeds global `random`
+  from it so the *strategies'* own coin flips are common random numbers too.
+- `k` must be even; `PairResult.deal_scores` records A's score (0–2) per deal.
+
+**Deal sets are drawn independently per pairing** (`_pair_deals`), not shared across the
+field. Sharing one set is tempting — every entrant measured on identical hands — but it
+correlates all the pairings within a run so deal luck no longer averages out across them;
+measured on an 8-entrant field it made run-to-run rating variance **~3× worse**. Per-pairing
+deals keep that averaging and still get the within-pair mirror.
+
+### How much does it actually buy? ~10%
+
+Measured over 600-game pairings, comparing observed variance of the per-deal score against
+the independent-games prediction:
+
+| pairing | variance ratio | effective games |
+|---|---|---|
+| Cartographer vs Greedy | 0.89 | 1.12× |
+| Cartographer vs Minimalist | 0.91 | 1.10× |
+| Architect vs Greedy | 0.79 | 1.26× |
+| Cartographer vs Random | 0.92 | 1.08× |
+| Greedy vs Random | 0.97 | 1.04× |
+
+End to end that lands about where you'd expect: over 40 repeat tournaments of an 8-entrant
+field at `-k 40`, the spread of the final Elo ratings came out at a **0.94 variance ratio,
+i.e. ~1.06× effective games**.
+
+So it is **real but modest — roughly a 10% variance cut, worth ~1.1× the games**. The reason
+it isn't the 2×+ duplicate bridge gets: the two halves diverge as soon as the two strategies
+choose differently, after which the shared deck order stops delivering the same cards. Only
+the opening 8 cards and the first discard are truly common. **Raising `-k` is still the
+bigger lever** — `--duplicate` is a free extra, not a substitute.
+
+Note most bots are deterministic given a deal, so the common-random-numbers reseed only
+changes anything in pairings involving `Random` (where it helps: 1.03 → 0.92).
+
 ## The rating: Bradley-Terry → Elo
 
 This is the principled model for a complete round robin. Constants live at the top of
@@ -104,6 +152,10 @@ every rating via **`bootstrap_ratings(result, n_boot, ci, seed)`** in
   ties)` from a multinomial with the observed proportions — then refits Bradley-Terry and
   re-anchors via `to_elo`. **No games are replayed**; only the cheap matrix fit re-runs, so
   even `N = 2000` is fast.
+- Under `--duplicate` the resampling unit is the **deal pair**, not the game: the two
+  mirrored halves share a deck and are not independent, so replicates resample
+  `PairResult.deal_scores` (a block bootstrap). Resampling games there would treat the
+  paired design as independent and overstate the precision.
 - The band is the **percentile spread** of each entrant's rating across replicates (the
   `(1 ± ci)/2` quantiles), returned as `{index: {"lo", "hi", "median", "samples"}}`.
 - With Random anchored it is pinned to exactly 1500 in every replicate, so **its band is a
