@@ -65,3 +65,15 @@ def test_tournament_adds_svg_and_highlights():
 
 def test_tournament_is_script_free():
     assert "<script" not in _render_tournament().lower()
+
+
+def test_tournament_report_shows_split_schedule():
+    field = entrants(include_random=True)[:3]
+    field[-1].is_llm = True                    # metered entrant: shallow pairings
+    result = run_tournament(field, k=4, det_k=40, seed=1, max_turns=300)
+    html = render_tournament_html(result, {})
+    assert "40 / 4" in html                    # games/pairing card + config line
+    assert "det / vs LLM" in html
+    assert "40 games each" in html             # methodology explains the split
+    # Matrix cells are scored against their own pairing's game count, not a global k.
+    assert '0 of 40"' in html and '0 of 4"' in html

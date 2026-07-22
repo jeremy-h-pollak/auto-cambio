@@ -115,7 +115,8 @@ are forwarded to `tournament.py`:
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `-k, --games` | `100` | games per pairing (a multiple of 4 balances sides exactly) |
+| `-k, --games` | `100` | games per pairing (a multiple of 4 balances sides exactly); with `--det-games` set, applies only to pairings involving an LLM entrant |
+| `--det-games N` | = `-k` | games per pairing between deterministic (non-LLM) entrants — free and local, so go deep (e.g. `2000`) |
 | `-o, --output` | `tournament.html` | path for the HTML report |
 | `--seed` | none | random seed for reproducible runs |
 | `--no-random` | off | exclude the random baseline (profiles only) |

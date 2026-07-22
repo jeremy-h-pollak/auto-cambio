@@ -209,6 +209,22 @@ def _share(pr, of_index):
     return 100.0 * (pr.b_wins + 0.5 * pr.ties) / k
 
 
+_MIN_HIGHLIGHT_GAMES = 30
+
+
+def _eligible_pairs(result):
+    """Pairings big enough for a share-based highlight to mean anything.
+
+    Schedules can be uneven (deterministic pairings played thousands of times,
+    metered LLM pairings a handful), and an 8-game sweep is not a "dominant
+    matchup". Drop the thin pairings unless that leaves nothing.
+    """
+    pairs = list(result.pairs.values())
+    deep = [pr for pr in pairs
+            if pr.a_wins + pr.b_wins + pr.ties >= _MIN_HIGHLIGHT_GAMES]
+    return deep or pairs
+
+
 def tournament_highlights(result, rows):
     """Highlights for a round-robin tournament report. `rows` = rankings(result)."""
     out = []
@@ -250,9 +266,12 @@ def tournament_highlights(result, rows):
     rank_by_index = {r["index"]: r["rank"] for r in rows}
     name_by_index = {r["index"]: r["name"] for r in rows}
 
+    eligible = _eligible_pairs(result)
+
     # (d) Most dominant matchup
     dom = None  # (share, winner_idx, loser_idx, pr)
-    for (i, j), pr in result.pairs.items():
+    for pr in eligible:
+        i, j = pr.i, pr.j
         si, sj = _share(pr, i), _share(pr, j)
         share, win_i, lose_i = (si, i, j) if si >= sj else (sj, j, i)
         if dom is None or share > dom[0]:
@@ -270,7 +289,8 @@ def tournament_highlights(result, rows):
     # (e) Biggest upset: a lower-ranked entrant beating a higher-ranked one head-to-head
     if n >= 3:
         upset = None  # (rank_gap, share, low_idx, high_idx)
-        for (i, j), pr in result.pairs.items():
+        for pr in eligible:
+            i, j = pr.i, pr.j
             ri, rj = rank_by_index[i], rank_by_index[j]
             low, high = (i, j) if ri > rj else (j, i)   # higher rank number = weaker
             share_low = _share(pr, low)

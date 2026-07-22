@@ -150,6 +150,47 @@ def test_run_tournament_is_reproducible():
     assert a.wins == b.wins and a.losses == b.losses and a.ties == b.ties
 
 
+def _mixed_field():
+    """Two local entrants plus one flagged as an LLM (it plays a local strategy —
+    the flag, not the implementation, is what schedules its games)."""
+    return [
+        Entrant("greedy", "Greedy", strategies.get("greedy")),
+        Entrant("random", "Random", random_strategy),
+        Entrant("kimi", "Kimi K2", strategies.get("minimalist"), is_llm=True),
+    ]
+
+
+def test_det_games_only_deepens_non_llm_pairings():
+    field_ = _mixed_field()
+    res = run_tournament(field_, 4, det_k=40, seed=1, max_turns=300)
+
+    assert res.k == 4 and res.det_k == 40
+    # greedy vs random is local → 40 games; both LLM pairings stay at 4.
+    assert res.ngames[0][1] == res.ngames[1][0] == 40
+    assert res.ngames[0][2] == res.ngames[1][2] == 4
+    assert res.total_games == 40 + 4 + 4
+    for (i, j), pr in res.pairs.items():
+        assert pr.a_wins + pr.b_wins + pr.ties == pr.k == res.ngames[i][j]
+    # Per-entrant game counts follow the uneven schedule.
+    assert res.games == [44, 44, 8]
+    assert all(res.wins[i] + res.losses[i] + res.ties[i] == res.games[i]
+               for i in range(3))
+
+
+def test_det_games_defaults_to_k():
+    res = run_tournament(_small_field(), 8, seed=1, max_turns=300)
+    assert res.det_k == res.k == 8
+    assert all(pr.k == 8 for pr in res.pairs.values())
+
+
+def test_on_pair_receives_the_pairing_game_count():
+    seen = []
+    run_tournament(_mixed_field(), 4, det_k=8, seed=1, max_turns=300,
+                   on_pair=lambda idx, total, a, b, k: seen.append((a.key, b.key, k)))
+    assert seen == [("greedy", "random", 8), ("greedy", "kimi", 4),
+                    ("random", "kimi", 4)]
+
+
 def test_rankings_sorted_and_ranked():
     res = run_tournament(_small_field(), 8, seed=1, max_turns=300)
     rows = rankings(res)

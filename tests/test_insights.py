@@ -210,6 +210,25 @@ def test_tournament_consistent_ranking_when_no_upset():
     assert any(it["title"] == "Consistent ranking" for it in items)
 
 
+def test_tournament_ignores_thin_pairings_for_share_highlights():
+    """An 8-game sweep in a metered LLM pairing must not out-shout a 1000-game
+    result — with an uneven schedule the thin pairings are dropped."""
+    rows = _rows([(0, "a", "Alpha", 1700.0, 70.0),
+                  (1, "b", "Beta", 1600.0, 50.0),
+                  (2, "llm", "Kimi K2", 1400.0, 30.0)])
+    pairs = {
+        (0, 1): _Pair(0, 1, 800, 200, 0),   # deep: Alpha 80% of 1000
+        (0, 2): _Pair(0, 2, 8, 0, 0),       # thin sweep, 8 games
+        (1, 2): _Pair(1, 2, 0, 8, 0),       # thin upset, 8 games
+    }
+    items = tournament_highlights(_Result(pairs), rows)
+    dom = next(it for it in items if it["title"] == "Most dominant matchup")
+    assert "Beta" in dom["text"] and "80%" in dom["text"]
+    assert "Kimi K2" not in dom["text"]
+    # The 8-game "upset" is likewise ignored; no deep pairing has one.
+    assert not any(it["title"] == "Biggest upset" for it in items)
+
+
 def test_tournament_guards_single_entrant():
     rows = _rows([(0, "a", "Alpha", 1500.0, 50.0)])
     items = tournament_highlights(_Result({}), rows)

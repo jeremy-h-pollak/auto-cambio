@@ -124,7 +124,6 @@ def _rankings_table(rows, cis=None, ci_level=0.95):
 
 def _matrix_table(result, rows):
     order = [r["index"] for r in rows]          # rank order, best → worst
-    k = result.k
     head = '<th class="row-head"></th>' + "".join(
         f'<th title="{html.escape(rows[c]["name"])}">{c + 1}</th>'
         for c in range(len(order))
@@ -137,9 +136,11 @@ def _matrix_table(result, rows):
                 cells.append('<td class="diag"></td>')
                 continue
             rw, cw, ti = _record(result, row, col)
-            pct = _pct(rw + 0.5 * ti, k)
+            n = result.ngames[row][col]         # pairings can differ in game count
+            pct = _pct(rw + 0.5 * ti, n)
             r_, g_, b_ = _cell_color(pct)
-            title = f"{result.entrants[row].name} vs {result.entrants[col].name}: {rw}–{cw}–{ti}"
+            title = (f"{result.entrants[row].name} vs {result.entrants[col].name}: "
+                     f"{rw}–{cw}–{ti} of {n}")
             cells.append(
                 f'<td style="background:rgb({r_},{g_},{b_})" title="{html.escape(title)}">'
                 f'{pct:.0f}</td>'
@@ -160,10 +161,15 @@ def render_tournament_html(result, config=None, cis=None):
     t = result.timing
     anchored = any(e.key == "random" for e in result.entrants)
     ci_level = config.get("ci_level", 0.95)
+    det_k = result.det_k or result.k
+    has_llm = any(getattr(e, "is_llm", False) for e in result.entrants)
+    split_k = has_llm and det_k != result.k     # deterministic pairings played deeper
+    k_label = f"{det_k:,} / {result.k:,}" if split_k else f"{det_k:,}"
+    k_note = "det / vs LLM" if split_k else None
 
     cards = "".join([
         _card("Entrants", n),
-        _card("Games / pairing", f"{result.k:,}"),
+        _card("Games / pairing", k_label, k_note),
         _card("Total games", f"{result.total_games:,}"),
         _card("Tie rate", f"{_pct(result.total_ties, result.total_games):.1f}%"),
         _card("Avg game length", f"{result.mean_length:.1f}", "turns"),
@@ -196,9 +202,17 @@ def render_tournament_html(result, config=None, cis=None):
             f"replicates — overlapping bands mean the gap isn't resolved at this game "
             f"count.{degenerate}</li>")
 
+    format_note = (
+        f"Every pair of strategies plays {det_k:,} games."
+        if not split_k else
+        f"Pairings between the local (non-LLM) strategies play {det_k:,} games each; "
+        f"pairings involving a metered LLM entrant play {result.k:,}. Bradley-Terry "
+        f"weights each pairing by its own game count, so the deeper schedule simply "
+        f"buys tighter estimates where games are free.")
+
     methodology = f"""
     <ul>
-      <li><b>Format.</b> Every pair of strategies plays {result.k:,} games. Sides are
+      <li><b>Format.</b> {format_note} Sides are
       balanced — each strategy starts half its games and sits in each physical seat
       half the time — so first-move bias cancels out.</li>
       <li><b>Outcome.</b> Lowest hand sum wins (Cambio caller takes a +5 penalty if it
@@ -214,7 +228,8 @@ def render_tournament_html(result, config=None, cis=None):
     </ul>"""
 
     cfg = html.escape(
-        f"{n} entrants · {result.k:,} games/pairing · {result.total_games:,} games · "
+        f"{n} entrants · {k_label} games/pairing{f' ({k_note})' if k_note else ''} · "
+        f"{result.total_games:,} games · "
         f"seed={result.seed} · max_turns={result.max_turns} · "
         f"generated {datetime.now():%Y-%m-%d %H:%M:%S}"
     )

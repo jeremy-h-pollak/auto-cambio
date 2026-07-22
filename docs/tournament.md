@@ -9,6 +9,8 @@ ceiling can't.
 ./run-tournament.sh                                 # 15 profiles + random, 100 games/pairing
 ./run-tournament.sh -k 400 --seed 1 --quiet
 ./run-tournament.sh --no-random -o profiles.html    # profiles only, no random anchor
+./run-tournament.sh --det-games 2000 --bootstrap 2000 --quiet   # deep local run, tight CIs
+./run-tournament.sh --enable-kimi -k 8 --det-games 2000         # cheap LLM, deep field
 # (./run-tournament.sh forwards all args to `python tournament.py`)
 ```
 
@@ -16,7 +18,8 @@ ceiling can't.
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `-k, --games` | `100` | games per pairing (a multiple of 4 balances sides exactly) |
+| `-k, --games` | `100` | games per pairing (a multiple of 4 balances sides exactly). With `--det-games` set, this applies **only to pairings involving an LLM entrant** |
+| `--det-games N` | = `-k` | games per pairing between deterministic (non-LLM) entrants — those games are local and free, so this can be far larger (e.g. `2000`) |
 | `-o, --output` | `tournament.html` | path for the HTML report |
 | `--seed` | none | random seed for reproducible runs |
 | `--no-random` | off | exclude the random baseline (profiles only) |
@@ -31,7 +34,9 @@ ceiling can't.
 LLM entrants are opt-in, slow, and metered (each turn is a live API call needing
 `OPENROUTER_API_KEY`); cost scales with `-k` × field size, so keep `-k` tiny. The named
 models come from `game/llm_opponents.py` and are env-overridable
-(`CAMBIO_KIMI_MODEL` / `CAMBIO_HAIKU_MODEL`).
+(`CAMBIO_KIMI_MODEL` / `CAMBIO_HAIKU_MODEL`). Because only LLM pairings cost money,
+pair a tiny `-k` with a large `--det-games`: the bot ladder gets thousands of games per
+pairing at no cost while the API bill stays pinned to `-k` × (number of LLM pairings).
 
 The output is a standalone HTML report plus a console rankings table, via
 [`game/tournament_report.py`](../game/tournament_report.py). The report has:
@@ -40,7 +45,9 @@ The output is a standalone HTML report plus a console rankings table, via
   anchor, so the skill spread reads at a glance — above the **rankings table**;
 - the colour-graded **head-to-head win-rate matrix**;
 - the **methodology** note; and
-- an **Interesting results** highlights block: champion, cellar dweller, skill spread (in
+- an **Interesting results** highlights block (share-based picks ignore pairings under 30
+  games, so an 8-game LLM sweep can't masquerade as a dominant matchup): champion,
+  cellar dweller, skill spread (in
   expected-win-ratio terms via the 400 Elo ≈ 10:1 rule), the most dominant matchup, and the
   biggest upset (a lower-ranked entrant winning a head-to-head). It is dependency-free
   inline SVG/HTML — charts from [`game/charts.py`](../game/charts.py), highlight heuristics
@@ -63,6 +70,12 @@ games. Each entrant is an `Entrant(key, name, strat)`.
   and sits in each seat half the time. This removes first-move bias from the rating.
 - **Only win/loss/tie matters** — margins are ignored; a tie counts as **half a win** to
   each side.
+- **An uneven schedule is allowed.** `run_tournament(..., det_k=N)` plays `N` games for
+  every pairing where *neither* entrant is an LLM, and `k` for the rest. Bradley-Terry
+  weights each pairing by its own `ngames`, so mixing 2,000-game local pairings with
+  8-game metered ones is statistically sound — the deep pairings simply carry more
+  information. Each `PairResult` records its own `k`, `total_games` sums them, and the
+  report scores every matrix cell against that pairing's own game count.
 - Returns a `TournamentResult` with the win matrix, per-entrant W/L/T tallies, fitted
   `strengths`, Elo `ratings`, and timing.
 

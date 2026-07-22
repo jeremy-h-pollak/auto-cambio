@@ -11,9 +11,11 @@ Examples:
     python tournament.py                       # 15 profiles + random, 100 games/pairing
     python tournament.py -k 400 --seed 1 --quiet
     python tournament.py --no-random -o profiles.html
+    python tournament.py --enable-kimi -k 8 --det-games 2000   # cheap LLM, deep field
 """
 
 import argparse
+from itertools import combinations
 
 from game.tournament import entrants, run_tournament, rankings, bootstrap_ratings
 from game.tournament_report import write_tournament_report
@@ -51,7 +53,13 @@ def main(argv=None):
         description="Round-robin tournament across all Cambio strategies.")
     p.add_argument("-k", "--games", type=int, default=100,
                    help="games per pairing; a multiple of 4 balances sides exactly "
-                        "(default: 100)")
+                        "(default: 100). With --det-games set, this applies only to "
+                        "pairings involving an LLM entrant.")
+    p.add_argument("--det-games", type=int, default=None, metavar="N",
+                   help="games per pairing between deterministic (non-LLM) entrants. "
+                        "Those games are local and free, so this can be far larger "
+                        "than -k (e.g. 2000) to tighten their ratings while metered "
+                        "LLM pairings stay at -k. Default: same as -k.")
     p.add_argument("-o", "--output", default="tournament.html",
                    help="path for the HTML report (default: tournament.html)")
     p.add_argument("--seed", type=int, default=None,
@@ -113,20 +121,29 @@ def main(argv=None):
                       llm_model=args.llm_model, llm_snaps=args.llm_snaps,
                       llm_keys=llm_keys, keys=keys)
 
-    def on_pair(idx, total, a, b):
+    def on_pair(idx, total, a, b, k_pair):
         if args.quiet:
             if (idx + 1) % 10 == 0 or (idx + 1) == total:
                 print(f"\r  played {idx + 1}/{total} pairings", end="", flush=True)
         else:
-            print(f"  [{idx + 1:>3}/{total}] {a.name} vs {b.name}")
+            print(f"  [{idx + 1:>3}/{total}] {a.name} vs {b.name} ×{k_pair}")
 
     seed_note = f", seed={args.seed}" if args.seed is not None else ""
     n_pairs = len(field_) * (len(field_) - 1) // 2
+    det_k = args.det_games if args.det_games is not None else args.games
+    n_llm_pairs = sum(1 for a, b in combinations(field_, 2) if a.is_llm or b.is_llm)
+    n_det_pairs = n_pairs - n_llm_pairs
+    total_planned = n_det_pairs * det_k + n_llm_pairs * args.games
+    if n_llm_pairs and det_k != args.games:
+        schedule = (f"{det_k:,} games across {n_det_pairs} deterministic pairings, "
+                    f"{args.games:,} across {n_llm_pairs} LLM pairings")
+    else:
+        schedule = f"{(args.games if n_llm_pairs else det_k):,} games/pairing"
     print(f"Tournament: {len(field_)} entrants · {n_pairs} pairings · "
-          f"{args.games} games/pairing ({n_pairs * args.games:,} games){seed_note} …")
+          f"{schedule} ({total_planned:,} games){seed_note} …")
 
     result = run_tournament(field_, args.games, seed=args.seed,
-                            max_turns=args.max_turns, on_pair=on_pair)
+                            max_turns=args.max_turns, on_pair=on_pair, det_k=det_k)
     if args.quiet:
         print()
 

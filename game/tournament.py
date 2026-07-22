@@ -39,6 +39,7 @@ class Entrant:
     key: str
     name: str
     strat: object          # exposes choose_move / should_snap / apply_special
+    is_llm: bool = False   # metered: every decision is a live API call
 
 
 @dataclass
@@ -49,12 +50,13 @@ class PairResult:
     b_wins: int
     ties: int
     a_starts: int          # games in which A moved first (balance check)
+    k: int = 0             # games this pairing played
 
 
 @dataclass
 class TournamentResult:
     entrants: list
-    k: int
+    k: int                 # games/pairing for pairings involving an LLM entrant
     seed: int | None
     max_turns: int
     win: list                       # win[i][j] = fractional wins of i over j (tie = 0.5)
@@ -64,6 +66,7 @@ class TournamentResult:
     losses: list                    # per-entrant decisive losses
     ties: list                      # per-entrant ties
     games: list                     # per-entrant total games
+    det_k: int = 0         # games/pairing between local (non-LLM) entrants
     strengths: dict = field(default_factory=dict)   # index -> BT strength
     ratings: dict = field(default_factory=dict)      # index -> Elo-style rating
     total_games: int = 0
@@ -115,13 +118,15 @@ def entrants(include_random=True, include_llm=False, llm_model=None, llm_snaps=F
     if include_llm:
         from .strategy_llm import get_llm_strategy, LLMStrategy
         field_.append(Entrant(LLMStrategy.key, LLMStrategy.name,
-                              get_llm_strategy(model=llm_model, llm_snaps=llm_snaps)))
+                              get_llm_strategy(model=llm_model, llm_snaps=llm_snaps),
+                              is_llm=True))
     if llm_keys:
         from .strategy_llm import get_llm_strategy
         from .llm_opponents import NAMED_LLM_OPPONENTS, llm_model as named_model
         for key in llm_keys:
             field_.append(Entrant(key, NAMED_LLM_OPPONENTS[key]["name"],
-                                  get_llm_strategy(model=named_model(key), llm_snaps=llm_snaps)))
+                                  get_llm_strategy(model=named_model(key), llm_snaps=llm_snaps),
+                                  is_llm=True))
     return field_
 
 
@@ -140,10 +145,19 @@ def _sides(g):
     return a_seat, starting_seat
 
 
-def run_tournament(field_, k, seed=None, max_turns=1000, on_pair=None):
-    """Play every pairing `k` times; return a fully-rated TournamentResult."""
+def run_tournament(field_, k, seed=None, max_turns=1000, on_pair=None, det_k=None):
+    """Play every pairing and return a fully-rated TournamentResult.
+
+    Pairings normally play `k` games each. `det_k` sets a separate (typically much
+    larger) count for pairings where **neither** entrant is an LLM: those games are
+    local and free, so they can be played by the thousand to tighten the ratings,
+    while metered LLM pairings stay at the small `k`. Bradley-Terry weights each
+    pairing by its own game count, so an unequal schedule is fit correctly.
+    """
     if seed is not None:
         random.seed(seed)
+    if det_k is None:
+        det_k = k
 
     n = len(field_)
     win = [[0.0] * n for _ in range(n)]
@@ -159,7 +173,8 @@ def run_tournament(field_, k, seed=None, max_turns=1000, on_pair=None):
     t0 = time.perf_counter()
     for idx, (i, j) in enumerate(pair_list):
         a_wins = b_wins = tie = a_starts = 0
-        for g in range(k):
+        k_pair = k if (field_[i].is_llm or field_[j].is_llm) else det_k
+        for g in range(k_pair):
             a_seat, starting_seat = _sides(g)
             b_seat = OTHER[a_seat]
             if starting_seat == a_seat:
@@ -177,22 +192,22 @@ def run_tournament(field_, k, seed=None, max_turns=1000, on_pair=None):
 
         win[i][j] = a_wins + 0.5 * tie
         win[j][i] = b_wins + 0.5 * tie
-        ngames[i][j] = ngames[j][i] = k
-        pairs[(i, j)] = PairResult(i, j, a_wins, b_wins, tie, a_starts)
-        wins[i] += a_wins; losses[i] += b_wins; ties[i] += tie; games[i] += k
-        wins[j] += b_wins; losses[j] += a_wins; ties[j] += tie; games[j] += k
+        ngames[i][j] = ngames[j][i] = k_pair
+        pairs[(i, j)] = PairResult(i, j, a_wins, b_wins, tie, a_starts, k_pair)
+        wins[i] += a_wins; losses[i] += b_wins; ties[i] += tie; games[i] += k_pair
+        wins[j] += b_wins; losses[j] += a_wins; ties[j] += tie; games[j] += k_pair
         if on_pair is not None:
-            on_pair(idx, len(pair_list), field_[i], field_[j])
+            on_pair(idx, len(pair_list), field_[i], field_[j], k_pair)
     elapsed = time.perf_counter() - t0
 
     strengths = bradley_terry(win, ngames)
     anchor = next((m for m, e in enumerate(field_) if e.key == RANDOM_KEY), None)
     ratings = to_elo(strengths, anchor_index=anchor)
 
-    total_games = len(pair_list) * k
+    total_games = sum(pr.k for pr in pairs.values())
     total_ties = sum(ties) // 2          # each tie is double-counted across the pair
     return TournamentResult(
-        entrants=field_, k=k, seed=seed, max_turns=max_turns,
+        entrants=field_, k=k, det_k=det_k, seed=seed, max_turns=max_turns,
         win=win, ngames=ngames, pairs=pairs,
         wins=wins, losses=losses, ties=ties, games=games,
         strengths=strengths, ratings=ratings,
