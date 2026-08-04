@@ -96,7 +96,7 @@ auto-cambio/
 - **`strategy_llm.py`**, **`llm_client.py`**, **`llm_prompts.py`**, **`llm_opponents.py`** —
   the opt-in LLM strategy: the bot itself, the OpenRouter client, the versioned system
   prompts (`v1` rules-only / `v2` + the top bot's playbook), and the registry mapping a
-  named entrant (`kimi`, `haiku`, `gemini`, `gemini-v2`) to a model id + prompt version.
+  named entrant (`kimi`, `haiku`, `gemini`, `gemini-v2`, `gemini-v3`) to a model id + prompt version.
   Off by default everywhere. See [llm-strategy.md](llm-strategy.md).
 - **`engine.py`** — `GameEngine` for live play: owns mutable `state`, runs computer
   snaps and turns synchronously, alternates the starting player on `reset()`.

@@ -28,7 +28,7 @@ ceiling can't.
 | `--quiet` | off | suppress per-pairing progress |
 | `--enable-llm` | off | add the generic OpenRouter LLM entrant (`--llm-model`, `--llm-snaps`) |
 | `--enable-kimi` / `--enable-haiku` | off | enter the named Kimi K2 / Claude Haiku models as distinct competitors |
-| `--enable-gemini` / `--enable-gemini-v2` | off | enter Gemini Flash twice — same model, system prompt **v1** vs **v2** — to A/B a prompt change |
+| `--enable-gemini` / `--enable-gemini-v2` / `--enable-gemini-v3` | off | enter Gemini Flash on system prompt **v1** / **v2** (playbook as prose) / **v3** (playbook as a procedure) — same model, to A/B a prompt change |
 
 LLM entrants are opt-in, slow, and metered (each turn is a live API call needing
 `OPENROUTER_API_KEY`); cost scales with `-k` × field size, so keep `-k` tiny. The named
@@ -36,13 +36,13 @@ models come from `game/llm_opponents.py` and are env-overridable
 (`CAMBIO_KIMI_MODEL` / `CAMBIO_HAIKU_MODEL` / `CAMBIO_GEMINI_MODEL`).
 
 An entrant carries a **system-prompt version** as well as a model, so a prompt change is
-measurable: `gemini` and `gemini-v2` are the same model under
-[prompt v1 vs v2](llm-strategy.md#prompt-versions) and meet head-to-head inside one run.
-Pair it with `--duplicate` so that cell isn't deck luck:
+measurable: `gemini`, `gemini-v2`, and `gemini-v3` are the same model under
+[prompts v1 / v2 / v3](llm-strategy.md#prompt-versions) and meet head-to-head inside one
+run. Pair it with `--duplicate` so those cells aren't deck luck:
 
 ```bash
-python tournament.py --enable-gemini --enable-gemini-v2 \
-  --strategies cartographer,greedy,random -k 8 --duplicate --bootstrap 2000
+python tournament.py --enable-gemini --enable-gemini-v2 --enable-gemini-v3 \
+  --strategies random -k 100 --duplicate --bootstrap 2000
 ```
 
 The output is a standalone HTML report plus a console rankings table, via

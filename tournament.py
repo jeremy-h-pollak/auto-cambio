@@ -98,6 +98,10 @@ def main(argv=None):
                    help="add Gemini Flash on the v2 system prompt (rules + the "
                         "Cartographer's playbook). Pair with --enable-gemini to A/B the "
                         "prompt change: same model, same field, only the prompt differs.")
+    p.add_argument("--enable-gemini-v3", action="store_true",
+                   help="add Gemini Flash on the v3 system prompt (the Cartographer's "
+                        "playbook as an operational decision procedure, not prose). "
+                        "Enter with --enable-gemini/--enable-gemini-v2 to A/B all three.")
     args = p.parse_args(argv)
 
     keys = ([s.strip() for s in args.strategies.split(",") if s.strip()]
@@ -106,7 +110,8 @@ def main(argv=None):
     llm_keys = ([k for k, on in (("kimi", args.enable_kimi),
                                  ("haiku", args.enable_haiku),
                                  ("gemini", args.enable_gemini),
-                                 ("gemini-v2", args.enable_gemini_v2)) if on])
+                                 ("gemini-v2", args.enable_gemini_v2),
+                                 ("gemini-v3", args.enable_gemini_v3)) if on])
     any_llm = args.enable_llm or bool(llm_keys)
 
     if any_llm:

@@ -33,9 +33,37 @@ def test_playbook_bot_is_the_cartographer():
     assert llm_prompts.PLAYBOOK_BOT.key == "cartographer"
 
 
+def test_v3_is_v1_plus_an_operational_procedure():
+    v1, v3 = llm_prompts.RULES_V1, llm_prompts.RULES_V3
+    assert v3.startswith(v1)                       # additive, like v2
+    bot = llm_prompts.PLAYBOOK_BOT
+    assert bot.name in v3
+    # v3's distinguishing form: an ordered procedure, not prose.
+    assert "DRAW PHASE" in v3 and "AFTER DRAWING" in v3
+    assert "Worked example" in v3
+
+
+def test_v3_thresholds_are_generated_from_the_bot_not_retyped():
+    # Every number the procedure states must be the bot's live attribute, so a
+    # retuned Cartographer moves v3 with it (no drifting second copy).
+    v3, bot = llm_prompts.RULES_V3, llm_prompts.PLAYBOOK_BOT
+    assert f"≤ {bot.cambio_abs_cap}" in v3
+    assert f"≤ {bot.grab_discard_max}" in v3
+    assert f"≤ {bot.gamble_max}" in v3
+    assert f"≥ {bot.blind_switch_min_give}" in v3
+
+
+def test_v2_and_v3_share_content_but_differ_in_form():
+    # Same source bot; v2 is prose ("Strategy guidance"), v3 is a procedure.
+    assert "Strategy guidance" in llm_prompts.RULES_V2
+    assert "DRAW PHASE" not in llm_prompts.RULES_V2
+    assert "Strategy guidance" not in llm_prompts.RULES_V3
+
+
 def test_get_prompt_versions_and_errors():
     assert llm_prompts.get_prompt() is llm_prompts.RULES_V1
     assert llm_prompts.get_prompt("v2") is llm_prompts.RULES_V2
+    assert llm_prompts.get_prompt("v3") is llm_prompts.RULES_V3
     with pytest.raises(ValueError, match="unknown prompt version"):
         llm_prompts.get_prompt("nope")
 
@@ -50,16 +78,22 @@ def test_gemini_variants_share_a_model_and_differ_only_by_prompt(monkeypatch):
 
 
 def test_named_opponents_default_to_v1():
-    for key in NAMED_LLM_OPPONENTS:
-        if not key.endswith("-v2"):
+    # Any entry without an explicit "prompt" key must fall back to the default.
+    for key, spec in NAMED_LLM_OPPONENTS.items():
+        if "prompt" not in spec:
             assert llm_prompt(key) == llm_prompts.DEFAULT_VERSION
+
+
+def test_gemini_v3_shares_model_and_carries_v3():
+    assert llm_model("gemini-v3") == llm_model("gemini")
+    assert llm_prompt("gemini-v3") == "v3"
 
 
 def test_entrants_build_named_llm_variants():
     # Construction only — LLMStrategy makes no call until asked for a move.
     field = entrants(include_random=False, keys=[],
-                     llm_keys=["gemini", "gemini-v2"])
-    assert [e.key for e in field] == ["gemini", "gemini-v2"]
-    assert [e.strat.prompt_version for e in field] == ["v1", "v2"]
-    assert field[0].strat.model == field[1].strat.model
-    assert "V2" in field[1].name          # the report must tell them apart
+                     llm_keys=["gemini", "gemini-v2", "gemini-v3"])
+    assert [e.key for e in field] == ["gemini", "gemini-v2", "gemini-v3"]
+    assert [e.strat.prompt_version for e in field] == ["v1", "v2", "v3"]
+    assert field[0].strat.model == field[1].strat.model == field[2].strat.model
+    assert "V2" in field[1].name and "V3" in field[2].name   # report tells them apart

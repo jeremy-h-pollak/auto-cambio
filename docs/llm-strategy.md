@@ -65,7 +65,7 @@ CAMBIO_ENABLE_LLM=1 python app.py    # the two LLM opponents appear in the choos
 Without `--enable-llm` / `CAMBIO_ENABLE_LLM`, the strategy is invisible:
 `simulate.py --strategy llm` errors out, and the web chooser omits it. Optional
 flags: `--llm-model <id>`, `--llm-snaps` (let the model decide snaps too), and
-`--llm-prompt v1|v2` ([prompt version](#prompt-versions)).
+`--llm-prompt v1|v2|v3` ([prompt version](#prompt-versions)).
 
 ## Prompt versions
 
@@ -76,16 +76,25 @@ makes a prompt change a shippable, *measurable* thing rather than an edit in pla
 - **v1** — rules only. The model is told how Cambio works and what it legitimately
   knows, and nothing about how to play well.
 - **v2** — v1 plus the playbook of **The Cartographer**, the top-rated hand-written bot
-  (#1 in reports 6994 and 6414). Report 06ce put the LLM entrants ~80–105 Elo *below* it,
-  so v2 tests whether that gap is withheld strategy knowledge rather than model ability.
-  The playbook text is **generated from the bot's own `rules` bullets**
-  (`strategies_advanced.ADVANCED["cartographer"].rules`), so retuning the bot updates the
-  prompt with it — there is no second copy to drift.
+  (#1 in reports 6994 and 6414), as **prose**. Report 06ce put the LLM entrants ~80–105 Elo
+  below it, so v2 tested whether that gap is withheld strategy knowledge. **Report 6efc
+  answered: no.** v2 beat v1 just 52–47–1 over 100 games (p=0.62) — describing the playbook
+  did not change how the model plays.
+- **v3** — the *same* playbook made **operational**: an ordered, numeric decision procedure
+  the model executes each turn (draw-phase priority list, after-draw priority list, power
+  rules, snap/keep rule) plus one worked example, instead of a paragraph about how a good
+  player thinks. 6efc's read was "it wasn't the content, it was the format", and v3 tests
+  exactly that — same source bot, imperative form.
+
+The v2/v3 playbooks are **generated from the bot itself** — v2 from its `rules` bullets,
+v3 from those bullets *and* its threshold attributes (`cambio_abs_cap`, `gamble_max`,
+`grab_discard_max`, `blind_switch_min_give`) — so retuning the Cartographer updates both
+prompts and there is no second copy of a threshold to drift.
 
 v1 is byte-identical to the original prompt and stays the default everywhere, so Kimi /
 Haiku / the generic entrant are unchanged and prior ratings remain comparable. To compare
-versions, enter both as competitors (`--enable-gemini --enable-gemini-v2`) so one run
-contains the direct head-to-head; every prompt-log entry and JSONL line records
+versions, enter them as competitors (`--enable-gemini --enable-gemini-v2 --enable-gemini-v3`)
+so one run contains the direct head-to-heads; every prompt-log entry and JSONL line records
 `prompt_version`, so a transcript is always attributable to a prompt.
 
 ### Web chooser: model-specific opponents
@@ -97,7 +106,8 @@ which prompt — to play against:
 - **Kimi K2 (LLM)** — `moonshotai/kimi-k2`
 - **Claude Haiku (LLM)** — `anthropic/claude-haiku-4.5`
 - **Gemini Flash (LLM)** — `google/gemini-3.1-flash-lite`, prompt v1
-- **Gemini Flash V2 (LLM)** — the same model on prompt v2
+- **Gemini Flash V2 (LLM)** — the same model on prompt v2 (playbook as prose)
+- **Gemini Flash V3 (LLM)** — the same model on prompt v3 (playbook as a procedure)
 
 Each is a plain `LLMStrategy` instance built with an explicit `model=` / `prompt_version=`
 (see `_strategy_object` in `app.py`); both are recorded on every prompt-log entry (below),
@@ -114,8 +124,8 @@ The model registry lives in `game/llm_opponents.py` (`NAMED_LLM_OPPONENTS`), sha
 both `app.py` and `tournament.py`. `simulate.py` still uses only the generic `llm`
 strategy plus `--llm-model` / `--llm-prompt` / `OPENROUTER_MODEL`, but `tournament.py` can
 enter the named models as distinct competitors via `--enable-kimi` / `--enable-haiku` /
-`--enable-gemini` / `--enable-gemini-v2` (each a separate entrant with its own model and
-prompt version, rankable against the full field).
+`--enable-gemini` / `--enable-gemini-v2` / `--enable-gemini-v3` (each a separate entrant
+with its own model and prompt version, rankable against the full field).
 
 ## Prompt log — watch what the model is asked and answers
 

@@ -89,11 +89,12 @@ def test_system_message_uses_selected_prompt_version(monkeypatch):
         get_llm_strategy(prompt_version=version).choose_move(state)
         return state["_llm"]["computer"]["messages"][0]["content"]
 
-    v1, v2 = sys_msg("v1"), sys_msg("v2")
-    assert "Lowest hand total wins" in v1 and "Lowest hand total wins" in v2
+    v1, v2, v3 = sys_msg("v1"), sys_msg("v2"), sys_msg("v3")
+    assert all("Lowest hand total wins" in v for v in (v1, v2, v3))
     assert PLAYBOOK_BOT.name not in v1            # v1 hands over no tactics
     assert PLAYBOOK_BOT.name in v2
     assert PLAYBOOK_BOT.rules[0] in v2            # generated from the bot's own rules
+    assert "DRAW PHASE" in v3                     # v3 is the operational form
 
 
 def test_unknown_prompt_version_rejected_at_construction():
@@ -101,9 +102,10 @@ def test_unknown_prompt_version_rejected_at_construction():
         get_llm_strategy(prompt_version="v9")
 
 
-def test_v2_plays_full_games(monkeypatch):
+@pytest.mark.parametrize("version", ["v2", "v3"])
+def test_playbook_versions_play_full_games(monkeypatch, version):
     patch(monkeypatch, smart_reply)
-    strat = get_llm_strategy(prompt_version="v2")
+    strat = get_llm_strategy(prompt_version=version)
     recs, _ = run_simulation(3, smart=strat, opponent=random_strategy,
                              seed=5, max_turns=400)
     assert len(recs) == 3

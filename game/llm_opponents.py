@@ -25,6 +25,7 @@ NAMED_LLM_OPPONENTS = {
     "haiku": {"name": "Claude Haiku (LLM)", "env": "CAMBIO_HAIKU_MODEL", "default": "anthropic/claude-haiku-4.5"},
     "gemini":    {"name": "Gemini Flash (LLM)",    **_GEMINI},
     "gemini-v2": {"name": "Gemini Flash V2 (LLM)", **_GEMINI, "prompt": "v2"},
+    "gemini-v3": {"name": "Gemini Flash V3 (LLM)", **_GEMINI, "prompt": "v3"},
 }
 
 
