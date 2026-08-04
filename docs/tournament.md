@@ -28,6 +28,7 @@ ceiling can't.
 | `--quiet` | off | suppress per-pairing progress |
 | `--enable-llm` | off | add the generic OpenRouter LLM entrant (`--llm-model`, `--llm-snaps`) |
 | `--enable-kimi` / `--enable-haiku` | off | enter the named Kimi K2 / Claude Haiku models as distinct competitors |
+| `--enable-gemini` / `--enable-gemini-opus` | off | enter Gemini Flash behind the `v1` vs the Opus-authored system prompt — same model, so the pair A/Bs the prompt alone (see [llm-prompt-opus.md](llm-prompt-opus.md)) |
 
 LLM entrants are opt-in, slow, and metered (each turn is a live API call needing
 `OPENROUTER_API_KEY`); cost scales with `-k` × field size, so keep `-k` tiny. The named

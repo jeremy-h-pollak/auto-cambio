@@ -91,13 +91,21 @@ def main(argv=None):
     p.add_argument("--enable-haiku", action="store_true",
                    help="add Claude Haiku as a named LLM entrant (slow, costs money; needs "
                         "OPENROUTER_API_KEY). Model overridable via CAMBIO_HAIKU_MODEL.")
+    p.add_argument("--enable-gemini", action="store_true",
+                   help="add Gemini Flash (v1 rules-only prompt) as a named LLM entrant "
+                        "(slow, costs money). Model overridable via CAMBIO_GEMINI_MODEL.")
+    p.add_argument("--enable-gemini-opus", action="store_true",
+                   help="add Gemini Flash with the Opus-authored strategy prompt — same "
+                        "model as --enable-gemini, so entering both A/Bs the prompt alone.")
     args = p.parse_args(argv)
 
     keys = ([s.strip() for s in args.strategies.split(",") if s.strip()]
             if args.strategies else None)
 
     llm_keys = ([k for k, on in (("kimi", args.enable_kimi),
-                                 ("haiku", args.enable_haiku)) if on])
+                                 ("haiku", args.enable_haiku),
+                                 ("gemini", args.enable_gemini),
+                                 ("gemini-opus", args.enable_gemini_opus)) if on])
     any_llm = args.enable_llm or bool(llm_keys)
 
     if any_llm:

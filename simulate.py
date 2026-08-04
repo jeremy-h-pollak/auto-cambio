@@ -12,7 +12,7 @@ Examples:
 
 import argparse
 
-from game import strategies
+from game import llm_prompts, strategies
 from game.strategies_advanced import ADVANCED, get_advanced
 import game.strategy as random_strategy
 from game.simulator import run_simulation
@@ -87,6 +87,10 @@ def main(argv=None):
     p.add_argument("--llm-snaps", action="store_true",
                    help="let the LLM decide snaps too (more API calls); off by "
                         "default the LLM strategy snaps with a cheap heuristic")
+    p.add_argument("--llm-prompt", default=llm_prompts.DEFAULT_VERSION,
+                   choices=sorted(llm_prompts.PROMPT_VERSIONS),
+                   help="system-prompt version for --strategy llm "
+                        f"(default: {llm_prompts.DEFAULT_VERSION})")
     args = p.parse_args(argv)
 
     if args.strategy == "llm" and not args.enable_llm:
@@ -123,9 +127,11 @@ def main(argv=None):
         from game.strategy_llm import get_llm_strategy
         from game import llm_client
         llm_client.reset_usage()
-        smart = get_llm_strategy(model=args.llm_model, llm_snaps=args.llm_snaps)
+        smart = get_llm_strategy(model=args.llm_model, llm_snaps=args.llm_snaps,
+                                 prompt_version=args.llm_prompt)
         smart_label, opp_label = "smart", "random"
-        run_desc = f"{smart.name} ({llm_client.model_name()}) vs Random"
+        run_desc = (f"{smart.name} ({llm_client.model_name()}, "
+                    f"prompt {args.llm_prompt}) vs Random")
         config_extra = {
             "strategy_name": smart.name,
             "strategy_key": smart.key,
