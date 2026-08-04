@@ -8,3 +8,4 @@
 | 6994 | 2026-05-26 10:34 | 63000 | Round-robin (21 entrants): new Cartographer is #1; all 5 advanced strategies top-10. Keep; promote Cartographer. | [link](2026-05-26-103439-6994/) |
 | 6414 | 2026-06-04 13:27 | 23100 | Round-robin (22 entrants): smart/greedy default is mid-pack at 1664 Elo (#14/22), below all advanced + simple low-sum bots. Keep as baseline. | [link](2026-06-04-132718-6414/) |
 | 06ce | 2026-06-16 14:51 | 60 | First LLM-on-ladder round-robin (6 entrants): Kimi K2 & Claude Haiku land mid-pack (1616/1641 Elo), ≈ Greedy, below Cartographer; Kimi≈Haiku (2–2 H2H). Small k=4 sample. TBD. | [link](2026-06-16-145153-06ce/) |
+| 6efc | 2026-08-04 11:12 | 300 | Prompt-A/B (Gemini Flash v1 vs v2): adding the Cartographer's playbook to the system prompt is a **null** — v2 beat v1 52–47–1 over 100 games (p=0.62), Elo CIs overlap. Clean run (0.02% fallback, $2.50). Next: iterate v2 format / stronger model. | [link](2026-08-04-111245-6efc/) |
