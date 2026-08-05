@@ -36,7 +36,7 @@ import sys
 import uuid
 from datetime import datetime, timezone
 
-from . import llm_client, strategies
+from . import llm_client, llm_prompts, strategies
 from .rules import card_value, special_type
 
 
@@ -75,44 +75,6 @@ def _extract_json(text):
         return None
 
 
-_RULES = """\
-You are playing Cambio, a card game. Lowest hand total wins.
-
-Card values: A=1, 2-10 face value, J=11, Q=12. Kings: a BLACK king (spades ♠ /
-clubs ♣) is 13, a RED king (hearts ♥ / diamonds ♦) is -1. So a red King is a
-great card to keep.
-
-Each player has a hand of up to 4 cards in fixed positions, indexed 0..3. You
-start knowing only some of your own cards.
-
-On your turn you either:
-  1. call Cambio (ends the round; every other player gets one last turn), or
-  2. draw one card — from the face-down deck or by taking the discard top — then
-     either SWAP it into one of your positions (discarding the card that was
-     there) or DISCARD it.
-
-Discarding a card triggers its power (drawing/swapping does not):
-  * 7 or 8  -> peek at one of YOUR OWN cards.
-  * 9 or 10 -> peek at one OPPONENT card.
-  * J or Q  -> blind switch: swap one of your cards with an opponent's, unseen.
-  * K       -> look at one of your cards and one opponent card, then optionally
-               switch them.
-Switch powers (J/Q/K) are disabled once Cambio has been called.
-
-Snapping: if you KNOW a card in your hand whose rank matches the current discard
-top, you may "snap" it — instantly remove it from your hand (good for positive
-cards, bad for a red King since it lowers your total to keep it).
-
-Scoring: lowest total wins. The player who called Cambio gets +5 penalty if they
-do NOT have the strictly lowest total, so only call when you are confident.
-
-Think before you act. Respond to every prompt with ONLY a single JSON object (no
-markdown, no text around it) whose FIRST key is "reason": one short sentence
-explaining your choice (e.g. weigh your hand total, the discard top, what you know
-of the opponent). Put "reason" first, then the action keys the prompt asks for.
-"""
-
-
 class LLMStrategy:
     key = "llm"
     name = "OpenRouter LLM"
@@ -128,9 +90,14 @@ class LLMStrategy:
         "(announced in the log).",
     ]
 
-    def __init__(self, model=None, llm_snaps=False):
+    def __init__(self, model=None, llm_snaps=False,
+                 prompt_version=llm_prompts.DEFAULT_VERSION):
         self.model = model
         self.llm_snaps = llm_snaps
+        self.prompt_version = prompt_version
+        # Resolved eagerly so an unknown version fails at construction (with a
+        # clear ValueError), not mid-game on the first API call.
+        self.system_prompt = llm_prompts.get_prompt(prompt_version)
         self._fallback = strategies.get("greedy")
         self.call_count = 0
         self.fallback_count = 0
@@ -151,8 +118,8 @@ class LLMStrategy:
                 else "Your opponent moved first this game."
             store[seat] = {
                 "messages": [
-                    {"role": "system", "content": f"{_RULES}\nYou are the "
-                     f"'{seat}' player. {first}"}
+                    {"role": "system", "content": f"{self.system_prompt}\nYou are "
+                     f"the '{seat}' player. {first}"}
                 ],
                 "log_shown": len(state["log"]),
             }
@@ -298,6 +265,7 @@ class LLMStrategy:
             "seat": seat,
             "kind": kind,
             "model": self.model or llm_client.model_name(),
+            "prompt_version": self.prompt_version,
             "state": gsi,            # GSi — the fair-info snapshot the model saw
             "prompt": prompt,        # Pi — the instruction/MOVES text (or retry nudge)
             "full_prompt": full_prompt,  # exactly what was sent to the API
@@ -594,5 +562,7 @@ class LLMStrategy:
             state["log"].append(f"{seat} used K: looked but chose not to switch.")
 
 
-def get_llm_strategy(model=None, llm_snaps=False):
-    return LLMStrategy(model=model, llm_snaps=llm_snaps)
+def get_llm_strategy(model=None, llm_snaps=False,
+                     prompt_version=llm_prompts.DEFAULT_VERSION):
+    return LLMStrategy(model=model, llm_snaps=llm_snaps,
+                       prompt_version=prompt_version)

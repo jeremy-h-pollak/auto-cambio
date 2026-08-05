@@ -8,3 +8,4 @@
 | 6994 | 2026-05-26 10:34 | 63000 | Round-robin (21 entrants): new Cartographer is #1; all 5 advanced strategies top-10. Keep; promote Cartographer. | [link](2026-05-26-103439-6994/) |
 | 6414 | 2026-06-04 13:27 | 23100 | Round-robin (22 entrants): smart/greedy default is mid-pack at 1664 Elo (#14/22), below all advanced + simple low-sum bots. Keep as baseline. | [link](2026-06-04-132718-6414/) |
 | 06ce | 2026-06-16 14:51 | 60 | First LLM-on-ladder round-robin (6 entrants): Kimi K2 & Claude Haiku land mid-pack (1616/1641 Elo), ≈ Greedy, below Cartographer; Kimi≈Haiku (2–2 H2H). Small k=4 sample. TBD. | [link](2026-06-16-145153-06ce/) |
+| 6267 | 2026-08-04 12:38 | 80 | Opus-authored prompt on ladder (5 entrants): Flash Lite + opus prompt TIES Cartographer for #1 (1645 Elo, 62.5%) vs prior LLMs ≈ Greedy. Keep prompt (PR #44); confirm with bigger k. | [link](2026-08-04-123829-6267/) |

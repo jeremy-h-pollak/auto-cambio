@@ -19,6 +19,7 @@ truth; the root [`README.md`](../README.md) is the short, human-facing entry poi
 | [web-app.md](web-app.md) | The Flask app: routes, sessions, template context, the HTMX flow, and `board.html`'s form fields. |
 | [strategies.md](strategies.md) | The strategy interface, `StrategyProfile` tunables, the 15 named bots, and how to add one. |
 | [llm-strategy.md](llm-strategy.md) | The opt-in OpenRouter LLM strategy — setup, the fair-information prompt contract, cost/fallback behavior, and how to enable it. |
+| [llm-prompt-opus.md](llm-prompt-opus.md) | The `opus` prompt version: what game logs Claude Opus reviewed, the failure modes it found, and how to A/B the prompt. |
 | [simulation.md](simulation.md) | `simulate.py` / `run-sim.sh`, the HTML report, and the snap-symmetry the simulator enforces. |
 | [tournament.md](tournament.md) | `tournament.py` / `run-tournament.sh`, the Bradley-Terry → Elo rating, and the bot ladder. |
 | [testing.md](testing.md) | Test layout, how to run pytest with coverage, and the CI workflow. |

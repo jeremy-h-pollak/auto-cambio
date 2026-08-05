@@ -125,10 +125,12 @@ def entrants(include_random=True, include_llm=False, llm_model=None, llm_snaps=F
                               get_llm_strategy(model=llm_model, llm_snaps=llm_snaps)))
     if llm_keys:
         from .strategy_llm import get_llm_strategy
-        from .llm_opponents import NAMED_LLM_OPPONENTS, llm_model as named_model
+        from .llm_opponents import (NAMED_LLM_OPPONENTS, llm_model as named_model,
+                                    llm_prompt as named_prompt)
         for key in llm_keys:
             field_.append(Entrant(key, NAMED_LLM_OPPONENTS[key]["name"],
-                                  get_llm_strategy(model=named_model(key), llm_snaps=llm_snaps)))
+                                  get_llm_strategy(model=named_model(key), llm_snaps=llm_snaps,
+                                                   prompt_version=named_prompt(key))))
     return field_
 
 

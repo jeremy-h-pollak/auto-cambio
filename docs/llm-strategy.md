@@ -57,7 +57,23 @@ CAMBIO_ENABLE_LLM=1 python app.py    # the two LLM opponents appear in the choos
 
 Without `--enable-llm` / `CAMBIO_ENABLE_LLM`, the strategy is invisible:
 `simulate.py --strategy llm` errors out, and the web chooser omits it. Optional
-flags: `--llm-model <id>` and `--llm-snaps` (let the model decide snaps too).
+flags: `--llm-model <id>`, `--llm-snaps` (let the model decide snaps too), and
+`--llm-prompt <version>` (simulate.py only; pick the system-prompt version).
+
+## Prompt versions
+
+The system prompt is versioned in [`game/llm_prompts.py`](../game/llm_prompts.py)
+so a prompt change is a measurable entrant, not a silent edit:
+
+- **`v1`** (default) — rules only; no strategy advice.
+- **`opus`** — rules + a log-derived playbook authored by Claude Opus after
+  reviewing top-bot transcripts and 92 real v1 decisions. See
+  [llm-prompt-opus.md](llm-prompt-opus.md) for the evidence behind every rule.
+
+`LLMStrategy(prompt_version=...)` resolves the version at construction (unknown
+versions fail fast), and every prompt-log/JSONL entry records `prompt_version`.
+For a prompt-only A/B, `tournament.py --enable-gemini --enable-gemini-opus`
+enters the same model behind both prompts as two distinct competitors.
 
 ### Web chooser: two model-specific opponents
 
@@ -81,7 +97,11 @@ The model registry lives in `game/llm_opponents.py` (`NAMED_LLM_OPPONENTS`), sha
 both `app.py` and `tournament.py`. `simulate.py` still uses only the generic `llm`
 strategy plus `--llm-model` / `OPENROUTER_MODEL`, but `tournament.py` can now enter the
 named models as distinct competitors via `--enable-kimi` / `--enable-haiku` (each a
-separate entrant with its own model, rankable against the full field).
+separate entrant with its own model, rankable against the full field). The registry
+also holds the prompt A/B pair `gemini` / `gemini-opus` (`--enable-gemini` /
+`--enable-gemini-opus`; tournament-only, not in the web chooser): the same model —
+`CAMBIO_GEMINI_MODEL` overrides both together — behind prompt versions `v1` and
+`opus`, so their rating gap is attributable to the prompt alone.
 
 ## Prompt log — watch what the model is asked and answers
 
