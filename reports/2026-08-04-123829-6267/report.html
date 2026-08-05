@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cambio Round-Robin Tournament</title><style>
+:root { --bg:#0f1117; --panel:#1a1d27; --ink:#e6e8ee; --muted:#9aa0ad;
+        --smart:#4f9dff; --random:#ff7a59; --tie:#9aa0ad; --accent:#48d597; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+       font:15px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+.wrap { max-width:980px; margin:0 auto; padding:32px 24px 64px; }
+h1 { font-size:26px; margin:0 0 4px; }
+.sub { color:var(--muted); margin:0 0 28px; }
+h2 { font-size:18px; margin:34px 0 14px; border-bottom:1px solid #2a2e3a; padding-bottom:8px; }
+.strategy-box { border-left:4px solid var(--smart); margin:0 0 26px; }
+.strategy-box .strat-name { font-size:18px; font-weight:600; margin-bottom:4px; }
+.strategy-box .strat-name .vs { color:var(--muted); font-weight:400; font-size:14px; }
+.strategy-box ul { margin:10px 0 2px 20px; display:flex; flex-direction:column; gap:7px; }
+.strategy-box li { color:#cdd3df; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; }
+.card { background:var(--panel); border:1px solid #262a36; border-radius:12px; padding:16px 18px; }
+.card .label { color:var(--muted); font-size:13px; }
+.card .value { font-size:28px; font-weight:600; margin-top:4px; }
+.card .value small { font-size:14px; color:var(--muted); font-weight:400; }
+.panel { background:var(--panel); border:1px solid #262a36; border-radius:12px; padding:18px 20px; }
+.bar-row { display:flex; align-items:center; gap:12px; margin:8px 0; }
+.bar-label { width:160px; color:var(--muted); font-size:13px; text-align:right; }
+.bar-track { flex:1; background:#11141c; border-radius:6px; overflow:hidden; height:26px; }
+.bar-fill { height:100%; display:flex; align-items:center; justify-content:flex-end;
+            padding:0 8px; color:#08111d; font-size:12px; font-weight:600; white-space:nowrap; }
+table { width:100%; border-collapse:collapse; margin-top:6px; }
+td,th { text-align:left; padding:6px 8px; border-bottom:1px solid #262a36; font-size:14px; }
+th { color:var(--muted); font-weight:500; }
+
+/* inline-SVG charts */
+.chart-svg { max-width:100%; height:auto; display:block; }
+.chart-svg text { fill:var(--muted); font:11px -apple-system,Segoe UI,Roboto,sans-serif; }
+.chart-svg .axis line { stroke:#2a2e3a; stroke-width:1; }
+.chart-svg .axis-anchor { stroke:#3a4150; stroke-width:1; stroke-dasharray:3 3; }
+.chart-svg .tick.name { fill:var(--ink); }
+.chart-svg .donut-center { fill:var(--ink); font-size:24px; font-weight:600; }
+.chart-svg .donut-sub { fill:var(--muted); font-size:11px; }
+.chart-svg .chart-empty { fill:var(--muted); font-size:13px; }
+.chart-row { display:flex; gap:24px; align-items:center; flex-wrap:wrap; }
+.chart-row .chart { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:8px; }
+.chart-row .bars { flex:1 1 300px; min-width:260px; }
+.chart-legend { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12px; color:var(--muted); }
+.chart-legend .lg-item { display:inline-flex; align-items:center; gap:6px; }
+.chart-legend .lg-swatch { width:10px; height:10px; border-radius:3px; display:inline-block; }
+
+/* interesting-results highlights */
+.highlights { display:flex; flex-direction:column; gap:10px; }
+.highlight { display:flex; gap:12px; align-items:flex-start; background:#11141c;
+             border-left:4px solid var(--muted); border-radius:8px; padding:10px 14px; }
+.highlight.good { border-left-color:var(--accent); }
+.highlight.bad, .highlight.warn { border-left-color:var(--random); }
+.highlight.neutral { border-left-color:var(--smart); }
+.highlight .h-icon { font-size:20px; line-height:1.3; }
+.highlight .h-body { display:flex; flex-direction:column; gap:2px; }
+.highlight .h-title { font-weight:600; }
+.highlight .h-text { color:#cdd3df; font-size:14px; }
+
+.matrix { border-collapse:collapse; font-size:12px; }
+.matrix th, .matrix td { border:1px solid #11141c; padding:5px 7px; text-align:center;
+                         white-space:nowrap; }
+.matrix th { color:var(--muted); font-weight:500; }
+.matrix th.row-head { text-align:right; color:var(--ink); font-weight:500; }
+.matrix td.diag { background:#11141c; }
+.matrix-wrap { overflow-x:auto; }
+.legend { display:flex; align-items:center; gap:8px; color:var(--muted);
+          font-size:12px; margin-top:12px; }
+.legend .swatch { width:120px; height:12px; border-radius:3px;
+  background:linear-gradient(90deg,#c2491f,#2a2e3a,#4f9dff); }
+.rank-bar-track { background:#11141c; border-radius:5px; overflow:hidden; height:18px;
+                  width:160px; }
+.rank-bar-fill { height:100%; background:var(--smart); border-radius:5px; }
+td.num { text-align:right; font-variant-numeric:tabular-nums; }
+</style></head>
+<body><div class="wrap">
+  <h1>Cambio Round-Robin Tournament</h1>
+  <p class="sub">5 entrants · 8 games/pairing (4 duplicate deals) · 80 games · seed=43 · max_turns=1000 · generated 2026-08-04 12:37:53</p>
+
+  <div class="cards"><div class="card"><div class="label">Entrants</div><div class="value">5</div></div><div class="card"><div class="label">Games / pairing</div><div class="value">8</div></div><div class="card"><div class="label">Total games</div><div class="value">80</div></div><div class="card"><div class="label">Tie rate</div><div class="value">0.0%</div></div><div class="card"><div class="label">Avg game length</div><div class="value">14.3 <small>turns</small></div></div><div class="card"><div class="label">Throughput</div><div class="value">0 <small>games/sec</small></div></div></div>
+
+  <h2>Rankings</h2>
+  <div class="panel">
+    <p class="sub" style="margin:0 0 14px">Elo-style rating relative to the 1500 anchor
+    (coin-flip play). Bars right of the line beat the field; left of it trail it.</p>
+    <svg viewBox="0 0 720 150" width="720" height="150" class="chart-svg" role="img"><line x1="408.0" y1="10" x2="408.0" y2="140" class="axis-anchor"/><text x="408.0" y="8" text-anchor="middle" class="tick">1500</text><text x="142" y="23.0" text-anchor="end" dominant-baseline="central" class="tick name">The Cartographer</text><rect x="408.0" y="15.2" width="107.1" height="15.6" rx="3" fill="var(--smart)"><title>The Cartographer: 1645 (+145 vs 1500) · 95% CI [1484, 1850]</title></rect><g class="ci-whisker" stroke="var(--ink)" stroke-width="1.3" opacity="0.85"><line x1="396.6" y1="23.0" x2="666.0" y2="23.0"/><line x1="396.6" y1="16.8" x2="396.6" y2="29.2"/><line x1="666.0" y1="16.8" x2="666.0" y2="29.2"/></g><text x="672" y="23.0" text-anchor="start" dominant-baseline="central" class="tick">1645</text><text x="142" y="49.0" text-anchor="end" dominant-baseline="central" class="tick name">Gemini Flash · Opus prompt (LLM)</text><rect x="408.0" y="41.2" width="107.1" height="15.6" rx="3" fill="var(--smart)"><title>Gemini Flash · Opus prompt (LLM): 1645 (+145 vs 1500) · 95% CI [1531, 1797]</title></rect><g class="ci-whisker" stroke="var(--ink)" stroke-width="1.3" opacity="0.85"><line x1="430.9" y1="49.0" x2="626.7" y2="49.0"/><line x1="430.9" y1="42.8" x2="430.9" y2="55.2"/><line x1="626.7" y1="42.8" x2="626.7" y2="55.2"/></g><text x="672" y="49.0" text-anchor="start" dominant-baseline="central" class="tick">1645</text><text x="142" y="75.0" text-anchor="end" dominant-baseline="central" class="tick name">Greedy Minimizer</text><rect x="408.0" y="67.2" width="71.4" height="15.6" rx="3" fill="var(--smart)"><title>Greedy Minimizer: 1597 (+97 vs 1500) · 95% CI [1453, 1757]</title></rect><g class="ci-whisker" stroke="var(--ink)" stroke-width="1.3" opacity="0.85"><line x1="373.3" y1="75.0" x2="597.5" y2="75.0"/><line x1="373.3" y1="68.8" x2="373.3" y2="81.2"/><line x1="597.5" y1="68.8" x2="597.5" y2="81.2"/></g><text x="672" y="75.0" text-anchor="start" dominant-baseline="central" class="tick">1597</text><text x="142" y="101.0" text-anchor="end" dominant-baseline="central" class="tick name">Selective Snapper</text><rect x="408.0" y="93.2" width="12.2" height="15.6" rx="3" fill="var(--smart)"><title>Selective Snapper: 1517 (+17 vs 1500) · 95% CI [1385, 1657]</title></rect><g class="ci-whisker" stroke="var(--ink)" stroke-width="1.3" opacity="0.85"><line x1="323.1" y1="101.0" x2="523.3" y2="101.0"/><line x1="323.1" y1="94.8" x2="323.1" y2="107.2"/><line x1="523.3" y1="94.8" x2="523.3" y2="107.2"/></g><text x="672" y="101.0" text-anchor="start" dominant-baseline="central" class="tick">1517</text><text x="142" y="127.0" text-anchor="end" dominant-baseline="central" class="tick name">Random</text><rect x="408.0" y="119.2" width="0.0" height="15.6" rx="3" fill="var(--smart)"><title>Random: 1500 (+0 vs 1500) · 95% CI [1500, 1500]</title></rect><g class="ci-whisker" stroke="var(--ink)" stroke-width="1.3" opacity="0.85"><line x1="408.0" y1="127.0" x2="408.0" y2="127.0"/><line x1="408.0" y1="120.8" x2="408.0" y2="133.2"/><line x1="408.0" y1="120.8" x2="408.0" y2="133.2"/></g><text x="672" y="127.0" text-anchor="start" dominant-baseline="central" class="tick">1500</text></svg>
+    <table><thead><tr><th>#</th><th>Strategy</th><th>Rating</th><th></th><th>95% CI</th><th>Win%</th><th>W–L–T</th><th>Games</th></tr></thead><tbody><tr><td class="num">1</td><td>The Cartographer</td><td class="num">1645</td><td><div class="rank-bar-track"><div class="rank-bar-fill" style="width:100.0%"></div></div></td><td class="num">[1484, 1850]</td><td class="num">62.5%</td><td class="num">20–12–0</td><td class="num">32</td></tr><tr><td class="num">2</td><td>Gemini Flash · Opus prompt (LLM)</td><td class="num">1645</td><td><div class="rank-bar-track"><div class="rank-bar-fill" style="width:100.0%"></div></div></td><td class="num">[1531, 1797]</td><td class="num">62.5%</td><td class="num">20–12–0</td><td class="num">32</td></tr><tr><td class="num">3</td><td>Greedy Minimizer</td><td class="num">1597</td><td><div class="rank-bar-track"><div class="rank-bar-fill" style="width:69.3%"></div></div></td><td class="num">[1453, 1757]</td><td class="num">53.1%</td><td class="num">17–15–0</td><td class="num">32</td></tr><tr><td class="num">4</td><td>Selective Snapper</td><td class="num">1517</td><td><div class="rank-bar-track"><div class="rank-bar-fill" style="width:18.5%"></div></div></td><td class="num">[1385, 1657]</td><td class="num">37.5%</td><td class="num">12–20–0</td><td class="num">32</td></tr><tr><td class="num">5</td><td>Random</td><td class="num">1500</td><td><div class="rank-bar-track"><div class="rank-bar-fill" style="width:8.0%"></div></div></td><td class="num">[1500, 1500]</td><td class="num">34.4%</td><td class="num">11–21–0</td><td class="num">32</td></tr></tbody></table>
+  </div>
+
+  <h2>How each strategy plays</h2>
+  <div class="panel">
+    <p class="sub" style="margin:0 0 18px">Every entrant's playbook, in rank order —
+    how it draws, swaps, snaps, uses card powers, and decides to call Cambio.</p>
+    <div class="strategy-box" style="padding-left:14px"><div class="strat-name">1. The Cartographer <span class="vs">· rated 1645</span></div><ul><li>Spends 7/8/9/10 on their peeks to map both hands before committing — discards them for the power even when a small swap is available.</li><li>Builds a memory of the opponent&#x27;s cards and only commits to Cambio once it has peeked enough of them to trust its read.</li><li>K/J-Q switch on gains; keeps red Kings; gambles only draws ≤5.</li><li>Calls Cambio at an estimated total ≤12 with a lead — or earlier if its own total is already tiny.</li></ul></div><div class="strategy-box" style="padding-left:14px"><div class="strat-name">2. Gemini Flash · Opus prompt (LLM) <span class="vs">· rated 1645</span></div><ul><li>An LLM (via OpenRouter) is given only the rules and the cards it legitimately knows, then asked to choose each move — no hard-coded Cambio tactics.</li><li>One running conversation per game: it is told which seat it is and who moves first, then each turn&#x27;s fair-information state as the game unfolds.</li><li>Tracks its own peeks across turns; snaps use a built-in heuristic by default to keep API cost down.</li><li>On any API error or illegal reply it falls back to the Greedy Minimizer (announced in the log).</li></ul></div><div class="strategy-box" style="padding-left:14px"><div class="strat-name">3. Greedy Minimizer <span class="vs">· rated 1597</span></div><ul><li>Snaps any known card the instant its rank matches the discard pile.</li><li>Draws from the discard pile only when its top card is lower than the highest card it knows; otherwise draws from the deck.</li><li>Replaces its highest known card when the draw is lower; if the draw is its new highest but 6 or lower, gambles it onto an unknown card; otherwise discards the draw and uses its power.</li><li>Calls Cambio once all four cards are known and their total is 8 or less.</li></ul></div><div class="strategy-box" style="padding-left:14px"><div class="strat-name">4. Selective Snapper <span class="vs">· rated 1517</span></div><ul><li>Only snaps high cards (value 7 or above) — deliberately keeps low and negative cards (like red Kings, worth −1) in hand.</li><li>Draws from the discard pile when its top beats the highest card it knows.</li><li>Replaces its highest known card when the draw is lower; gambles a drawn card 6 or lower onto an unknown slot; otherwise discards and uses the power.</li><li>Calls Cambio once all four cards are known and their total is 8 or less.</li></ul></div><div class="strategy-box" style="padding-left:14px"><div class="strat-name">5. Random <span class="vs">· rated 1500</span></div><ul><li>Baseline coin-flip play: calls Cambio about 8% of the time; otherwise usually grabs a discard top worth 3 or less, else draws from the deck.</li><li>Swaps the drawn card into a random slot, except a high card (10+) it tends to discard.</li><li>Snaps each eligible matching card about 70% of the time; fires every power on a random target.</li></ul></div>
+  </div>
+
+  <h2>Head-to-head win rates</h2>
+  <div class="panel">
+    <p class="sub" style="margin:0 0 14px">Each cell is the row strategy's win share
+    against the column strategy (ties = ½). Columns are numbered in the same rank
+    order as the rows; hover a cell for the raw W–L–T.</p>
+    <div class="matrix-wrap"><table class="matrix"><thead><tr><th class="row-head"></th><th title="The Cartographer">1</th><th title="Gemini Flash · Opus prompt (LLM)">2</th><th title="Greedy Minimizer">3</th><th title="Selective Snapper">4</th><th title="Random">5</th></tr></thead><tbody><tr><th class="row-head">1. The Cartographer</th><td class="diag"></td><td style="background:rgb(51,74,107)" title="The Cartographer vs Gemini Flash · Opus prompt (LLM): 5–3–0">62</td><td style="background:rgb(51,74,107)" title="The Cartographer vs Greedy Minimizer: 5–3–0">62</td><td style="background:rgb(60,102,156)" title="The Cartographer vs Selective Snapper: 6–2–0">75</td><td style="background:rgb(42,46,58)" title="The Cartographer vs Random: 4–4–0">50</td></tr><tr><th class="row-head">2. Gemini Flash · Opus prompt (LLM)</th><td style="background:rgb(95,65,66)" title="Gemini Flash · Opus prompt (LLM) vs The Cartographer: 3–5–0">38</td><td class="diag"></td><td style="background:rgb(51,74,107)" title="Gemini Flash · Opus prompt (LLM) vs Greedy Minimizer: 5–3–0">62</td><td style="background:rgb(60,102,156)" title="Gemini Flash · Opus prompt (LLM) vs Selective Snapper: 6–2–0">75</td><td style="background:rgb(60,102,156)" title="Gemini Flash · Opus prompt (LLM) vs Random: 6–2–0">75</td></tr><tr><th class="row-head">3. Greedy Minimizer</th><td style="background:rgb(95,65,66)" title="Greedy Minimizer vs The Cartographer: 3–5–0">38</td><td style="background:rgb(95,65,66)" title="Greedy Minimizer vs Gemini Flash · Opus prompt (LLM): 3–5–0">38</td><td class="diag"></td><td style="background:rgb(60,102,156)" title="Greedy Minimizer vs Selective Snapper: 6–2–0">75</td><td style="background:rgb(51,74,107)" title="Greedy Minimizer vs Random: 5–3–0">62</td></tr><tr><th class="row-head">4. Selective Snapper</th><td style="background:rgb(148,84,74)" title="Selective Snapper vs The Cartographer: 2–6–0">25</td><td style="background:rgb(148,84,74)" title="Selective Snapper vs Gemini Flash · Opus prompt (LLM): 2–6–0">25</td><td style="background:rgb(148,84,74)" title="Selective Snapper vs Greedy Minimizer: 2–6–0">25</td><td class="diag"></td><td style="background:rgb(60,102,156)" title="Selective Snapper vs Random: 6–2–0">75</td></tr><tr><th class="row-head">5. Random</th><td style="background:rgb(42,46,58)" title="Random vs The Cartographer: 4–4–0">50</td><td style="background:rgb(148,84,74)" title="Random vs Gemini Flash · Opus prompt (LLM): 2–6–0">25</td><td style="background:rgb(95,65,66)" title="Random vs Greedy Minimizer: 3–5–0">38</td><td style="background:rgb(148,84,74)" title="Random vs Selective Snapper: 2–6–0">25</td><td class="diag"></td></tr></tbody></table></div><div class="legend"><span>opponent win share for the row strategy</span><span class="swatch"></span><span>0% · 50% · 100%</span></div>
+  </div>
+
+  <h2>Methodology</h2>
+  <div class="panel">
+    <ul>
+      <li><b>Format.</b> Every pair of strategies plays 8 games. Sides are
+      balanced — each strategy starts half its games and sits in each physical seat
+      half the time — so first-move bias cancels out. Deck luck is controlled by <b>duplicate deals</b>: the pairing plays 4 fixed shuffles twice each, with the entrants swapped and the deck order, starting seat and in-game randomness held identical, so each deal is worth the same to both sides. Deal sets are drawn independently per pairing. It is a modest effect — roughly a 10% cut in the variance of a head-to-head estimate, since the two halves diverge as soon as the strategies choose differently and only the opening hands are truly shared.</li>
+      <li><b>Outcome.</b> Lowest hand sum wins (Cambio caller takes a +5 penalty if it
+      isn't lowest). Equal sums are broken in favour of the hand holding more cards;
+      a genuine tie (equal sum <b>and</b> equal card count) counts as half a win to
+      each side. Only win/loss/tie is recorded; <b>margin is ignored</b>.</li>
+      <li><b>Rating.</b> A Bradley-Terry model is fit to all pairwise results at once
+      (Hunter 2004 MM iteration), then mapped to an Elo-style scale via
+      rating = anchor + 400·log<sub>10</sub>(strength ratio). Random is fixed at 1500 as the calibration floor; every other rating reads as points above coin-flip play. A small
+      symmetric prior keeps every rating finite. A 400-point gap ≈ a 10:1 expected
+      win ratio.</li>
+      <li><b>Confidence intervals.</b> The 95% bands come from a nonparametric pairwise bootstrap: each of 2,000 replicates resamples every pairing's recorded deal pairs with replacement, refits Bradley-Terry, and re-anchors. The band is the percentile spread of each rating across replicates — overlapping bands mean the gap isn't resolved at this game count. Random sits exactly at the 1500 anchor in every replicate, so its band is a degenerate point.</li>
+    </ul></div>
+
+  <h2>Interesting results</h2>
+  <div class="panel highlights"><div class="highlight good"><div class="h-icon">🏆</div><div class="h-body"><div class="h-title">Champion</div><div class="h-text">The Cartographer tops the field at 1645 Elo (62.5% wins across 32 games). Random anchors the scale at 1500 (rank 5/5).</div></div></div><div class="highlight bad"><div class="h-icon">🔻</div><div class="h-body"><div class="h-title">Cellar dweller</div><div class="h-text">Random sits last at 1500 Elo (34.4% wins).</div></div></div><div class="highlight warn"><div class="h-icon">📏</div><div class="h-body"><div class="h-title">Skill spread</div><div class="h-text">145 Elo separates first from last (~2:1 expected wins). A narrow ladder — the bots are closely matched, hinting at a low skill ceiling.</div></div></div><div class="highlight neutral"><div class="h-icon">💥</div><div class="h-body"><div class="h-title">Most dominant matchup</div><div class="h-text">Selective Snapper owns Random, winning 75% of their games (6–2–0).</div></div></div><div class="highlight neutral"><div class="h-icon">✅</div><div class="h-body"><div class="h-title">Consistent ranking</div><div class="h-text">No upsets — every head-to-head agrees with the overall ranking order.</div></div></div></div>
+</div></body></html>
