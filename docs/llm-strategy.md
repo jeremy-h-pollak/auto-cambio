@@ -1,14 +1,17 @@
 # LLM strategy (OpenRouter)
 
 An opt-in strategy that puts a real LLM in the decision loop instead of a
-hand-written heuristic. The model is given **only the rules and the cards it
-legitimately knows**, then asked to choose each move. It is **off by default
+hand-written heuristic. The model is given **the rules and only the cards it
+legitimately knows** — plus, on prompt [v2](#prompt-versions), the top hand-written
+bot's playbook — then asked to choose each move. It is **off by default
 everywhere** because every decision is a live, metered, network API call.
 
 - `game/llm_client.py` — thin OpenRouter chat client + run-wide token/cost accounting.
 - `game/strategy_llm.py` — `LLMStrategy`, implementing the usual duck-typed
   interface (`choose_move` / `should_snap` / `apply_special` /
   `apply_computer_special`); see [strategies.md](strategies.md).
+- `game/llm_prompts.py` — the versioned system prompts (see
+  [Prompt versions](#prompt-versions)).
 
 ## Setup
 
@@ -48,8 +51,12 @@ python simulate.py --strategy llm --enable-llm -n 5 --seed 1
 # Add it to the round-robin (cost scales with -k × field size — use a tiny -k):
 python tournament.py --enable-llm -k 4
 
-# Enter the two named models as distinct competitors, ranked against the whole field:
+# Enter the named models as distinct competitors, ranked against the whole field:
 python tournament.py --enable-kimi --enable-haiku -k 4
+
+# A/B a prompt change: one model, two system prompts, head-to-head in one run:
+python tournament.py --enable-gemini --enable-gemini-v2 \
+  --strategies cartographer,greedy,random -k 8 --duplicate
 
 # Play against it in the web app:
 CAMBIO_ENABLE_LLM=1 python app.py    # the two LLM opponents appear in the chooser
@@ -57,21 +64,57 @@ CAMBIO_ENABLE_LLM=1 python app.py    # the two LLM opponents appear in the choos
 
 Without `--enable-llm` / `CAMBIO_ENABLE_LLM`, the strategy is invisible:
 `simulate.py --strategy llm` errors out, and the web chooser omits it. Optional
-flags: `--llm-model <id>` and `--llm-snaps` (let the model decide snaps too).
+flags: `--llm-model <id>`, `--llm-snaps` (let the model decide snaps too), and
+`--llm-prompt v1|v2|v3` ([prompt version](#prompt-versions)).
 
-### Web chooser: two model-specific opponents
+## Prompt versions
 
-With `CAMBIO_ENABLE_LLM=1`, the web chooser surfaces **two** named LLM opponents
-rather than one generic entry, so you can pick which model to play against:
+The system prompt is **versioned** in `game/llm_prompts.py`, and an entrant carries a
+version alongside its model (`LLMStrategy(prompt_version=...)`, default `"v1"`). That
+makes a prompt change a shippable, *measurable* thing rather than an edit in place:
+
+- **v1** — rules only. The model is told how Cambio works and what it legitimately
+  knows, and nothing about how to play well.
+- **v2** — v1 plus the playbook of **The Cartographer**, the top-rated hand-written bot
+  (#1 in reports 6994 and 6414), as **prose**. Report 06ce put the LLM entrants ~80–105 Elo
+  below it, so v2 tested whether that gap is withheld strategy knowledge. **Report 6efc
+  answered: no.** v2 beat v1 just 52–47–1 over 100 games (p=0.62) — describing the playbook
+  did not change how the model plays.
+- **v3** — the *same* playbook made **operational**: an ordered, numeric decision procedure
+  the model executes each turn (draw-phase priority list, after-draw priority list, power
+  rules, snap/keep rule) plus one worked example, instead of a paragraph about how a good
+  player thinks. 6efc's read was "it wasn't the content, it was the format", and v3 tests
+  exactly that — same source bot, imperative form.
+
+The v2/v3 playbooks are **generated from the bot itself** — v2 from its `rules` bullets,
+v3 from those bullets *and* its threshold attributes (`cambio_abs_cap`, `gamble_max`,
+`grab_discard_max`, `blind_switch_min_give`) — so retuning the Cartographer updates both
+prompts and there is no second copy of a threshold to drift.
+
+v1 is byte-identical to the original prompt and stays the default everywhere, so Kimi /
+Haiku / the generic entrant are unchanged and prior ratings remain comparable. To compare
+versions, enter them as competitors (`--enable-gemini --enable-gemini-v2 --enable-gemini-v3`)
+so one run contains the direct head-to-heads; every prompt-log entry and JSONL line records
+`prompt_version`, so a transcript is always attributable to a prompt.
+
+### Web chooser: model-specific opponents
+
+With `CAMBIO_ENABLE_LLM=1`, the web chooser surfaces the named LLM opponents from
+`game/llm_opponents.py` rather than one generic entry, so you can pick which model — and
+which prompt — to play against:
 
 - **Kimi K2 (LLM)** — `moonshotai/kimi-k2`
 - **Claude Haiku (LLM)** — `anthropic/claude-haiku-4.5`
+- **Gemini Flash (LLM)** — `google/gemini-3.1-flash-lite`, prompt v1
+- **Gemini Flash V2 (LLM)** — the same model on prompt v2 (playbook as prose)
+- **Gemini Flash V3 (LLM)** — the same model on prompt v3 (playbook as a procedure)
 
-Both are plain `LLMStrategy` instances built with an explicit `model=` (see
-`_strategy_object` in `app.py`); the model id is recorded on every prompt-log entry
-(below), so the log header tells you which model produced each move. OpenRouter
-slugs drift, so each is overridable without code edits via `CAMBIO_KIMI_MODEL` /
-`CAMBIO_HAIKU_MODEL`, e.g.:
+Each is a plain `LLMStrategy` instance built with an explicit `model=` / `prompt_version=`
+(see `_strategy_object` in `app.py`); both are recorded on every prompt-log entry (below),
+so the log header tells you which model *and* prompt produced each move. OpenRouter slugs
+drift, so each model is overridable without code edits via `CAMBIO_KIMI_MODEL` /
+`CAMBIO_HAIKU_MODEL` / `CAMBIO_GEMINI_MODEL` (both Gemini entrants read that one variable,
+so an override moves them together and keeps the A/B honest), e.g.:
 
 ```bash
 CAMBIO_ENABLE_LLM=1 CAMBIO_KIMI_MODEL=moonshotai/kimi-k2-thinking python app.py
@@ -79,9 +122,10 @@ CAMBIO_ENABLE_LLM=1 CAMBIO_KIMI_MODEL=moonshotai/kimi-k2-thinking python app.py
 
 The model registry lives in `game/llm_opponents.py` (`NAMED_LLM_OPPONENTS`), shared by
 both `app.py` and `tournament.py`. `simulate.py` still uses only the generic `llm`
-strategy plus `--llm-model` / `OPENROUTER_MODEL`, but `tournament.py` can now enter the
-named models as distinct competitors via `--enable-kimi` / `--enable-haiku` (each a
-separate entrant with its own model, rankable against the full field).
+strategy plus `--llm-model` / `--llm-prompt` / `OPENROUTER_MODEL`, but `tournament.py` can
+enter the named models as distinct competitors via `--enable-kimi` / `--enable-haiku` /
+`--enable-gemini` / `--enable-gemini-v2` / `--enable-gemini-v3` (each a separate entrant
+with its own model and prompt version, rankable against the full field).
 
 ## Prompt log — watch what the model is asked and answers
 
@@ -109,7 +153,7 @@ full game afterward. The default path is `llm_logs/prompts.jsonl` under the repo
 root (gitignored); override it with `CAMBIO_LLM_LOG=/path/to/log.jsonl`. Each line
 carries a UTC `ts`, a per-game `session` id, the `seat`, the decision `kind`
 (`draw`, `action`, `snap`, `peek_own`, `peek_opponent`, `blind_switch`, `look`,
-`look_decide`), the `model`, the `state`/`prompt`/`full_prompt`, the raw `response`,
+`look_decide`), the `model`, the `prompt_version`, the `state`/`prompt`/`full_prompt`, the raw `response`,
 the `parsed` move, the model's `reason`, and any `error`. Both sinks are populated in `LLMStrategy._ask`
 (`game/strategy_llm.py`), the single point every prompt flows through; a failed file
 write is swallowed (one stderr warning) so logging never interrupts a game.

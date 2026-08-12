@@ -17,6 +17,10 @@ auto-cambio/
 │   ├── strategy.py             # STRATEGY: the random baseline bot
 │   ├── strategies.py           # STRATEGY: StrategyProfile + SmartStrategy + 15 named bots
 │   ├── strategy_smart.py       # STRATEGY: thin facade exposing the "greedy" profile as a module
+│   ├── strategy_llm.py         # STRATEGY: opt-in LLM-in-the-loop bot (OpenRouter)
+│   ├── llm_client.py           # OpenRouter chat client + run-wide token/cost accounting
+│   ├── llm_prompts.py          # Versioned system prompts (v1 rules-only, v2 + playbook)
+│   ├── llm_opponents.py        # Named LLM entrants: key → model id + prompt version
 │   ├── engine.py               # ENGINE: GameEngine — owns state, drives live turn flow
 │   ├── simulator.py            # Self-play runner (drives rules directly; symmetric snaps)
 │   ├── deals.py                # Fixed shuffles for duplicate-bridge mirrored play
@@ -89,6 +93,11 @@ auto-cambio/
   (15 named bots). `get(key)` returns a bound `SmartStrategy`. See [strategies.md](strategies.md).
 - **`strategy_smart.py`** — a thin module facade binding the `"greedy"` profile so it can
   be imported like the random strategy module.
+- **`strategy_llm.py`**, **`llm_client.py`**, **`llm_prompts.py`**, **`llm_opponents.py`** —
+  the opt-in LLM strategy: the bot itself, the OpenRouter client, the versioned system
+  prompts (`v1` rules-only / `v2` + the top bot's playbook), and the registry mapping a
+  named entrant (`kimi`, `haiku`, `gemini`, `gemini-v2`, `gemini-v3`) to a model id + prompt version.
+  Off by default everywhere. See [llm-strategy.md](llm-strategy.md).
 - **`engine.py`** — `GameEngine` for live play: owns mutable `state`, runs computer
   snaps and turns synchronously, alternates the starting player on `reset()`.
 - **`simulator.py`** — batch self-play. `run_simulation(n, smart, opponent, …)` →

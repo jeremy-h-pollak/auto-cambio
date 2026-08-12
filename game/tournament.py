@@ -99,7 +99,8 @@ def entrants(include_random=True, include_llm=False, llm_model=None, llm_snaps=F
     LLM competitors are opt-in (each makes a live API call per decision):
     `include_llm` adds the generic LLM entrant, and `llm_keys` adds the named ones
     (e.g. "kimi", "haiku" from game/llm_opponents.NAMED_LLM_OPPONENTS), each as a
-    distinct entrant with its own model."""
+    distinct entrant with its own model *and system-prompt version* — so
+    "gemini"/"gemini-v2" enter as two competitors differing only in the prompt."""
     if keys is not None:
         cat = _catalog()
         field_ = []
@@ -125,10 +126,13 @@ def entrants(include_random=True, include_llm=False, llm_model=None, llm_snaps=F
                               get_llm_strategy(model=llm_model, llm_snaps=llm_snaps)))
     if llm_keys:
         from .strategy_llm import get_llm_strategy
-        from .llm_opponents import NAMED_LLM_OPPONENTS, llm_model as named_model
+        from .llm_opponents import (NAMED_LLM_OPPONENTS, llm_model as named_model,
+                                    llm_prompt)
         for key in llm_keys:
             field_.append(Entrant(key, NAMED_LLM_OPPONENTS[key]["name"],
-                                  get_llm_strategy(model=named_model(key), llm_snaps=llm_snaps)))
+                                  get_llm_strategy(model=named_model(key),
+                                                   llm_snaps=llm_snaps,
+                                                   prompt_version=llm_prompt(key))))
     return field_
 
 

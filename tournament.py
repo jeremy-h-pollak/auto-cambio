@@ -91,24 +91,40 @@ def main(argv=None):
     p.add_argument("--enable-haiku", action="store_true",
                    help="add Claude Haiku as a named LLM entrant (slow, costs money; needs "
                         "OPENROUTER_API_KEY). Model overridable via CAMBIO_HAIKU_MODEL.")
+    p.add_argument("--enable-gemini", action="store_true",
+                   help="add Gemini Flash as a named LLM entrant, on the v1 (rules-only) "
+                        "system prompt. Model overridable via CAMBIO_GEMINI_MODEL.")
+    p.add_argument("--enable-gemini-v2", action="store_true",
+                   help="add Gemini Flash on the v2 system prompt (rules + the "
+                        "Cartographer's playbook). Pair with --enable-gemini to A/B the "
+                        "prompt change: same model, same field, only the prompt differs.")
+    p.add_argument("--enable-gemini-v3", action="store_true",
+                   help="add Gemini Flash on the v3 system prompt (the Cartographer's "
+                        "playbook as an operational decision procedure, not prose). "
+                        "Enter with --enable-gemini/--enable-gemini-v2 to A/B all three.")
     args = p.parse_args(argv)
 
     keys = ([s.strip() for s in args.strategies.split(",") if s.strip()]
             if args.strategies else None)
 
     llm_keys = ([k for k, on in (("kimi", args.enable_kimi),
-                                 ("haiku", args.enable_haiku)) if on])
+                                 ("haiku", args.enable_haiku),
+                                 ("gemini", args.enable_gemini),
+                                 ("gemini-v2", args.enable_gemini_v2),
+                                 ("gemini-v3", args.enable_gemini_v3)) if on])
     any_llm = args.enable_llm or bool(llm_keys)
 
     if any_llm:
         from game import llm_client
-        from game.llm_opponents import llm_model as named_model
+        from game.llm_opponents import llm_model as named_model, llm_prompt
         llm_client.reset_usage()
         n_others = len(entrants(include_random=not args.no_random, keys=keys))
         models = []
         if args.enable_llm:
             models.append(llm_client.model_name())
-        models += [named_model(k) for k in llm_keys]
+        # Two entrants can share a model and differ only in prompt version, so name
+        # the version too — otherwise the warning lists the same model twice.
+        models += [f"{named_model(k)} ({llm_prompt(k)})" for k in llm_keys]
         print(f"  ⚠ LLM entrants ON — {', '.join(models)}. Each plays "
               f"~{n_others * args.games:,} games, every turn a live API call. "
               f"This can be slow and expensive; keep -k small (e.g. 4).")

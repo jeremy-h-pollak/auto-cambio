@@ -76,6 +76,40 @@ def test_factory_returns_strategy():
     strat = get_llm_strategy(model="x/y", llm_snaps=True)
     assert strat.model == "x/y" and strat.llm_snaps is True
     assert strat.key == "llm"
+    assert strat.prompt_version == "v1"           # rules-only prompt by default
+
+
+# ── System-prompt versions ───────────────────────────────────────────────────
+def test_system_message_uses_selected_prompt_version(monkeypatch):
+    from game.llm_prompts import PLAYBOOK_BOT
+
+    def sys_msg(version):
+        _capture_prompt(monkeypatch, {})
+        state = _computer_state()
+        get_llm_strategy(prompt_version=version).choose_move(state)
+        return state["_llm"]["computer"]["messages"][0]["content"]
+
+    v1, v2, v3 = sys_msg("v1"), sys_msg("v2"), sys_msg("v3")
+    assert all("Lowest hand total wins" in v for v in (v1, v2, v3))
+    assert PLAYBOOK_BOT.name not in v1            # v1 hands over no tactics
+    assert PLAYBOOK_BOT.name in v2
+    assert PLAYBOOK_BOT.rules[0] in v2            # generated from the bot's own rules
+    assert "DRAW PHASE" in v3                     # v3 is the operational form
+
+
+def test_unknown_prompt_version_rejected_at_construction():
+    with pytest.raises(ValueError, match="unknown prompt version"):
+        get_llm_strategy(prompt_version="v9")
+
+
+@pytest.mark.parametrize("version", ["v2", "v3"])
+def test_playbook_versions_play_full_games(monkeypatch, version):
+    patch(monkeypatch, smart_reply)
+    strat = get_llm_strategy(prompt_version=version)
+    recs, _ = run_simulation(3, smart=strat, opponent=random_strategy,
+                             seed=5, max_turns=400)
+    assert len(recs) == 3
+    assert strat.call_count > 0 and strat.fallback_count == 0
 
 
 # ── Full games through the real machinery ────────────────────────────────────
@@ -326,6 +360,7 @@ def test_trace_records_state_prompt_and_move(monkeypatch):
     assert "draw phase" in e["prompt"].lower()                  # Pi captured
     assert e["parsed"] == {"action": "draw_deck"}              # Mi parsed
     assert e["error"] is None
+    assert e["prompt_version"] == "v1"      # which system prompt drove the move
 
 
 def test_trace_retry_then_success_has_two_entries(monkeypatch):
@@ -344,13 +379,14 @@ def test_trace_retry_then_success_has_two_entries(monkeypatch):
 def test_trace_written_to_jsonl(monkeypatch):
     import json
     patch(monkeypatch, lambda c: '{"action": "draw_deck"}')
-    strat = get_llm_strategy()
+    strat = get_llm_strategy(prompt_version="v2")
     strat.choose_move(_computer_state())
     with open(strat.log_path, encoding="utf-8") as f:
         lines = [json.loads(l) for l in f if l.strip()]
     assert len(lines) == 1
     assert lines[0]["session"] == strat.session_id
     assert lines[0]["kind"] == "draw" and "ts" in lines[0]
+    assert lines[0]["prompt_version"] == "v2"   # A/B runs stay attributable
 
 
 def test_trace_log_write_failure_does_not_break_game(monkeypatch):
