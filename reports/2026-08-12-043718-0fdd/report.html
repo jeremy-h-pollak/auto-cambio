@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cambio Round-Robin Tournament</title><style>
+:root { --bg:#0f1117; --panel:#1a1d27; --ink:#e6e8ee; --muted:#9aa0ad;
+        --smart:#4f9dff; --random:#ff7a59; --tie:#9aa0ad; --accent:#48d597; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+       font:15px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+.wrap { max-width:980px; margin:0 auto; padding:32px 24px 64px; }
+h1 { font-size:26px; margin:0 0 4px; }
+.sub { color:var(--muted); margin:0 0 28px; }
+h2 { font-size:18px; margin:34px 0 14px; border-bottom:1px solid #2a2e3a; padding-bottom:8px; }
+.strategy-box { border-left:4px solid var(--smart); margin:0 0 26px; }
+.strategy-box .strat-name { font-size:18px; font-weight:600; margin-bottom:4px; }
+.strategy-box .strat-name .vs { color:var(--muted); font-weight:400; font-size:14px; }
+.strategy-box ul { margin:10px 0 2px 20px; display:flex; flex-direction:column; gap:7px; }
+.strategy-box li { color:#cdd3df; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; }
+.card { background:var(--panel); border:1px solid #262a36; border-radius:12px; padding:16px 18px; }
+.card .label { color:var(--muted); font-size:13px; }
+.card .value { font-size:28px; font-weight:600; margin-top:4px; }
+.card .value small { font-size:14px; color:var(--muted); font-weight:400; }
+.panel { background:var(--panel); border:1px solid #262a36; border-radius:12px; padding:18px 20px; }
+.bar-row { display:flex; align-items:center; gap:12px; margin:8px 0; }
+.bar-label { width:160px; color:var(--muted); font-size:13px; text-align:right; }
+.bar-track { flex:1; background:#11141c; border-radius:6px; overflow:hidden; height:26px; }
+.bar-fill { height:100%; display:flex; align-items:center; justify-content:flex-end;
+            padding:0 8px; color:#08111d; font-size:12px; font-weight:600; white-space:nowrap; }
+table { width:100%; border-collapse:collapse; margin-top:6px; }
+td,th { text-align:left; padding:6px 8px; border-bottom:1px solid #262a36; font-size:14px; }
+th { color:var(--muted); font-weight:500; }
+
+/* inline-SVG charts */
+.chart-svg { max-width:100%; height:auto; display:block; }
+.chart-svg text { fill:var(--muted); font:11px -apple-system,Segoe UI,Roboto,sans-serif; }
+.chart-svg .axis line { stroke:#2a2e3a; stroke-width:1; }
+.chart-svg .axis-anchor { stroke:#3a4150; stroke-width:1; stroke-dasharray:3 3; }
+.chart-svg .tick.name { fill:var(--ink); }
+.chart-svg .donut-center { fill:var(--ink); font-size:24px; font-weight:600; }
+.chart-svg .donut-sub { fill:var(--muted); font-size:11px; }
+.chart-svg .chart-empty { fill:var(--muted); font-size:13px; }
+.chart-row { display:flex; gap:24px; align-items:center; flex-wrap:wrap; }
+.chart-row .chart { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:8px; }
+.chart-row .bars { flex:1 1 300px; min-width:260px; }
+.chart-legend { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12px; color:var(--muted); }
+.chart-legend .lg-item { display:inline-flex; align-items:center; gap:6px; }
+.chart-legend .lg-swatch { width:10px; height:10px; border-radius:3px; display:inline-block; }
+
+/* interesting-results highlights */
+.highlights { display:flex; flex-direction:column; gap:10px; }
+.highlight { display:flex; gap:12px; align-items:flex-start; background:#11141c;
+             border-left:4px solid var(--muted); border-radius:8px; padding:10px 14px; }
+.highlight.good { border-left-color:var(--accent); }
+.highlight.bad, .highlight.warn { border-left-color:var(--random); }
+.highlight.neutral { border-left-color:var(--smart); }
+.highlight .h-icon { font-size:20px; line-height:1.3; }
+.highlight .h-body { display:flex; flex-direction:column; gap:2px; }
+.highlight .h-title { font-weight:600; }
+.highlight .h-text { color:#cdd3df; font-size:14px; }
+
+.matrix { border-collapse:collapse; font-size:12px; }
+.matrix th, .matrix td { border:1px solid #11141c; padding:5px 7px; text-align:center;
+                         white-space:nowrap; }
+.matrix th { color:var(--muted); font-weight:500; }
+.matrix th.row-head { text-align:right; color:var(--ink); font-weight:500; }
+.matrix td.diag { background:#11141c; }
+.matrix-wrap { overflow-x:auto; }
+.legend { display:flex; align-items:center; gap:8px; color:var(--muted);
+          font-size:12px; margin-top:12px; }
+.legend .swatch { width:120px; height:12px; border-radius:3px;
+  background:linear-gradient(90deg,#c2491f,#2a2e3a,#4f9dff); }
+.rank-bar-track { background:#11141c; border-radius:5px; overflow:hidden; height:18px;
+                  width:160px; }
+.rank-bar-fill { height:100%; background:var(--smart); border-radius:5px; }
+td.num { text-align:right; font-variant-numeric:tabular-nums; }
+</style></head>
+<body><div class="wrap">
+  <h1>Cambio Round-Robin Tournament</h1>
+  <p class="sub">2 entrants · 40 games/pairing (20 duplicate deals) · 40 games · seed=None · max_turns=1000 · generated 2026-08-12 04:06:25</p>
+
+  <div class="cards"><div class="card"><div class="label">Entrants</div><div class="value">2</div></div><div class="card"><div class="label">Games / pairing</div><div class="value">40</div></div><div class="card"><div class="label">Total games</div><div class="value">40</div></div><div class="card"><div class="label">Tie rate</div><div class="value">2.5%</div></div><div class="card"><div class="label">Avg game length</div><div class="value">10.6 <small>turns</small></div></div><div class="card"><div class="label">Throughput</div><div class="value">0 <small>games/sec</small></div></div></div>
+
+  <h2>Rankings</h2>
+  <div class="panel">
+    <p class="sub" style="margin:0 0 14px">Elo-style rating relative to the 1500 anchor
+    (coin-flip play). Bars right of the line beat the field; left of it trail it.</p>
+    <svg viewBox="0 0 720 72" width="720" height="72" class="chart-svg" role="img"><line x1="408.0" y1="10" x2="408.0" y2="62" class="axis-anchor"/><text x="408.0" y="8" text-anchor="middle" class="tick">1500</text><text x="142" y="23.0" text-anchor="end" dominant-baseline="central" class="tick name">Gemini Flash (LLM)</text><rect x="408.0" y="15.2" width="125.0" height="15.6" rx="3" fill="var(--smart)"><title>Gemini Flash (LLM): 1530 (+30 vs 1500) · 95% CI [1508, 1562]</title></rect><g class="ci-whisker" stroke="var(--ink)" stroke-width="1.3" opacity="0.85"><line x1="443.4" y1="23.0" x2="666.0" y2="23.0"/><line x1="443.4" y1="16.8" x2="443.4" y2="29.2"/><line x1="666.0" y1="16.8" x2="666.0" y2="29.2"/></g><text x="672" y="23.0" text-anchor="start" dominant-baseline="central" class="tick">1530</text><text x="142" y="49.0" text-anchor="end" dominant-baseline="central" class="tick name">Gemini Flash V3 (LLM)</text><rect x="283.0" y="41.2" width="125.0" height="15.6" rx="3" fill="var(--random)"><title>Gemini Flash V3 (LLM): 1470 (-30 vs 1500) · 95% CI [1438, 1492]</title></rect><g class="ci-whisker" stroke="var(--ink)" stroke-width="1.3" opacity="0.85"><line x1="150.0" y1="49.0" x2="372.6" y2="49.0"/><line x1="150.0" y1="42.8" x2="150.0" y2="55.2"/><line x1="372.6" y1="42.8" x2="372.6" y2="55.2"/></g><text x="672" y="49.0" text-anchor="start" dominant-baseline="central" class="tick">1470</text></svg>
+    <table><thead><tr><th>#</th><th>Strategy</th><th>Rating</th><th></th><th>95% CI</th><th>Win%</th><th>W–L–T</th><th>Games</th></tr></thead><tbody><tr><td class="num">1</td><td>Gemini Flash (LLM)</td><td class="num">1530</td><td><div class="rank-bar-track"><div class="rank-bar-fill" style="width:100.0%"></div></div></td><td class="num">[1508, 1562]</td><td class="num">57.5%</td><td class="num">23–16–1</td><td class="num">40</td></tr><tr><td class="num">2</td><td>Gemini Flash V3 (LLM)</td><td class="num">1470</td><td><div class="rank-bar-track"><div class="rank-bar-fill" style="width:8.0%"></div></div></td><td class="num">[1438, 1492]</td><td class="num">40.0%</td><td class="num">16–23–1</td><td class="num">40</td></tr></tbody></table>
+  </div>
+
+  <h2>How each strategy plays</h2>
+  <div class="panel">
+    <p class="sub" style="margin:0 0 18px">Every entrant's playbook, in rank order —
+    how it draws, swaps, snaps, uses card powers, and decides to call Cambio.</p>
+    <div class="strategy-box" style="padding-left:14px"><div class="strat-name">1. Gemini Flash (LLM) <span class="vs">· rated 1530</span></div><ul><li>An LLM (via OpenRouter) is given only the rules and the cards it legitimately knows, then asked to choose each move — no hard-coded Cambio tactics.</li><li>One running conversation per game: it is told which seat it is and who moves first, then each turn&#x27;s fair-information state as the game unfolds.</li><li>Tracks its own peeks across turns; snaps use a built-in heuristic by default to keep API cost down.</li><li>On any API error or illegal reply it falls back to the Greedy Minimizer (announced in the log).</li></ul></div><div class="strategy-box" style="padding-left:14px"><div class="strat-name">2. Gemini Flash V3 (LLM) <span class="vs">· rated 1470</span></div><ul><li>An LLM (via OpenRouter) is given only the rules and the cards it legitimately knows, then asked to choose each move — no hard-coded Cambio tactics.</li><li>One running conversation per game: it is told which seat it is and who moves first, then each turn&#x27;s fair-information state as the game unfolds.</li><li>Tracks its own peeks across turns; snaps use a built-in heuristic by default to keep API cost down.</li><li>On any API error or illegal reply it falls back to the Greedy Minimizer (announced in the log).</li></ul></div>
+  </div>
+
+  <h2>Head-to-head win rates</h2>
+  <div class="panel">
+    <p class="sub" style="margin:0 0 14px">Each cell is the row strategy's win share
+    against the column strategy (ties = ½). Columns are numbered in the same rank
+    order as the rows; hover a cell for the raw W–L–T.</p>
+    <div class="matrix-wrap"><table class="matrix"><thead><tr><th class="row-head"></th><th title="Gemini Flash (LLM)">1</th><th title="Gemini Flash V3 (LLM)">2</th></tr></thead><tbody><tr><th class="row-head">1. Gemini Flash (LLM)</th><td class="diag"></td><td style="background:rgb(48,65,92)" title="Gemini Flash (LLM) vs Gemini Flash V3 (LLM): 23–16–1">59</td></tr><tr><th class="row-head">2. Gemini Flash V3 (LLM)</th><td style="background:rgb(79,59,63)" title="Gemini Flash V3 (LLM) vs Gemini Flash (LLM): 16–23–1">41</td><td class="diag"></td></tr></tbody></table></div><div class="legend"><span>opponent win share for the row strategy</span><span class="swatch"></span><span>0% · 50% · 100%</span></div>
+  </div>
+
+  <h2>Methodology</h2>
+  <div class="panel">
+    <ul>
+      <li><b>Format.</b> Every pair of strategies plays 40 games. Sides are
+      balanced — each strategy starts half its games and sits in each physical seat
+      half the time — so first-move bias cancels out. Deck luck is controlled by <b>duplicate deals</b>: the pairing plays 20 fixed shuffles twice each, with the entrants swapped and the deck order, starting seat and in-game randomness held identical, so each deal is worth the same to both sides. Deal sets are drawn independently per pairing. It is a modest effect — roughly a 10% cut in the variance of a head-to-head estimate, since the two halves diverge as soon as the strategies choose differently and only the opening hands are truly shared.</li>
+      <li><b>Outcome.</b> Lowest hand sum wins (Cambio caller takes a +5 penalty if it
+      isn't lowest). Equal sums are broken in favour of the hand holding more cards;
+      a genuine tie (equal sum <b>and</b> equal card count) counts as half a win to
+      each side. Only win/loss/tie is recorded; <b>margin is ignored</b>.</li>
+      <li><b>Rating.</b> A Bradley-Terry model is fit to all pairwise results at once
+      (Hunter 2004 MM iteration), then mapped to an Elo-style scale via
+      rating = anchor + 400·log<sub>10</sub>(strength ratio). Ratings are centered so the field's mean is 1500. A small
+      symmetric prior keeps every rating finite. A 400-point gap ≈ a 10:1 expected
+      win ratio.</li>
+      <li><b>Confidence intervals.</b> The 95% bands come from a nonparametric pairwise bootstrap: each of 2,000 replicates resamples every pairing's recorded deal pairs with replacement, refits Bradley-Terry, and re-anchors. The band is the percentile spread of each rating across replicates — overlapping bands mean the gap isn't resolved at this game count.</li>
+    </ul></div>
+
+  <h2>Interesting results</h2>
+  <div class="panel highlights"><div class="highlight good"><div class="h-icon">🏆</div><div class="h-body"><div class="h-title">Champion</div><div class="h-text">Gemini Flash (LLM) tops the field at 1530 Elo (57.5% wins across 40 games).</div></div></div><div class="highlight bad"><div class="h-icon">🔻</div><div class="h-body"><div class="h-title">Cellar dweller</div><div class="h-text">Gemini Flash V3 (LLM) sits last at 1470 Elo (40.0% wins).</div></div></div><div class="highlight warn"><div class="h-icon">📏</div><div class="h-body"><div class="h-title">Skill spread</div><div class="h-text">60 Elo separates first from last (~1:1 expected wins). A narrow ladder — the bots are closely matched, hinting at a low skill ceiling.</div></div></div><div class="highlight neutral"><div class="h-icon">💥</div><div class="h-body"><div class="h-title">Most dominant matchup</div><div class="h-text">Gemini Flash (LLM) owns Gemini Flash V3 (LLM), winning 59% of their games (23–16–1).</div></div></div></div>
+</div></body></html>
